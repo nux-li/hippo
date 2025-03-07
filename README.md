@@ -1,0 +1,2 @@
+# hippo
+Hugo Image Preprocessor
