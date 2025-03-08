@@ -9,31 +9,24 @@ import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 
-//import com.github.ajalt.clikt.parameters.options.prompt
-
 class Hippo : CliktCommand() {
-    val precedence: String by option("-p", "--precedence")
+    private val precedence: String by option("-p", "--precedence")
         .choice("front_matter", "image_metadata")
         .default("front_matter")
         .help("If both the Hugo front matter and the image metadata have changed, which one takes precedence?")
-    val directory: String by argument()
+    private val format: String by option("-f", "--format")
+        .choice("json", "yaml")
+        .default("json")
+        .help("The format to be used for front matter segment")
+    private val directory: String by argument()
         .help("Path to the content directory for your Hugo website project")
 
     override fun run() {
-        echo(hippoAppHeader)
-        execute(directory, precedence.toPrecedence())
+        echo(appHeader())
+        execute(directory, precedence.toPrecedence(), format.toFrontMatterFormat())
     }
 }
 
 fun main(args: Array<String>) {
     Hippo().main(args)
-}
-
-enum class Precedence {
-    FRONT_MATTER,
-    IMAGE_METADATA
-}
-
-fun String.toPrecedence(): Precedence {
-    return Precedence.valueOf(this.uppercase())
 }

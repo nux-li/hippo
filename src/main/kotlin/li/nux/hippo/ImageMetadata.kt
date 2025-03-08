@@ -47,6 +47,26 @@ data class ImageMetadata(
         )
     }
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ImageMetadata
+
+        if (path != other.path) return false
+        if (album != other.album) return false
+        if (filename != other.filename) return false
+        if (title != other.title) return false
+        if (description != other.description) return false
+        if (credit != other.credit) return false
+        if (captureDate != other.captureDate) return false
+        if (captureTime != other.captureTime) return false
+        if (keywords != other.keywords) return false
+        if (exposureDetails != other.exposureDetails) return false
+
+        return true
+    }
+
     companion object {
         const val RADIX = 35
     }

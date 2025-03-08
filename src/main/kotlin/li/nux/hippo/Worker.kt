@@ -6,7 +6,6 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.util.Base64
 import java.util.Optional
 import java.util.function.Consumer
 import java.util.stream.Collectors
@@ -23,50 +22,20 @@ import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
 import org.apache.tika.Tika
 
-fun execute(directory: String, precedence: Precedence) {
+fun execute(directory: String, precedence: Precedence, format: FrontMatterFormat) {
     StorageService.createTable()
-    val tika = Tika()
     val storageService = StorageService()
     val path: Path = Paths.get(directory)
     val name = path.fileName.toString()
     println("Searching " + path.fileName.normalize() + " for image files...")
-    println("Btw. Precedence: $precedence")
-//    println(""+)
+    println("Btw. Precedence: $precedence, format: $format")
 
     if (name == "content") {
         val imagesWithMetadata: MutableList<ImageMetadata> = ArrayList()
 
         getSetOfPaths(path).stream().sorted().toList().forEach(Consumer { file: Path ->
             if (Files.isRegularFile(file)) {
-                try {
-                    val mimeTypeString = tika.detect(file)
-
-                    if ("image/jpeg" == mimeTypeString) {
-                        val imageMetadata: ImageMetadata = getImageMetadata(file)
-                        when (val existing = storageService.exists(imageMetadata.getReference())) {
-                            null -> {
-                                val insertId: Int = storageService.insertPostedImage(imageMetadata)
-                                imageMetadata.id = insertId
-                                println(
-                                    "New Jpeg image " + imageMetadata.getAlbumAndFilename() +
-                                        " found. Metadata: " + imageMetadata + ". HashCode: " + imageMetadata.hashCode()
-                                )
-                            }
-                            else -> {
-                                if (existing.hashCode() != imageMetadata.hashCode()) {
-                                    println("Detected updated image: ${imageMetadata.getAlbumAndFilename()}")
-                                    // TODO update image
-                                } else {
-                                    println("No change for image: ${imageMetadata.getAlbumAndFilename()}")
-                                }
-                            }
-                        }
-
-                        imagesWithMetadata.add(imageMetadata)
-                    }
-                } catch (e: IOException) {
-                    println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
-                }
+                handleFile(file, storageService, imagesWithMetadata, precedence)
             }
         })
         val albumMap: Map<String, List<ImageMetadata>> = imagesWithMetadata.groupBy { it.album }
@@ -81,6 +50,50 @@ fun execute(directory: String, precedence: Precedence) {
             "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."
         )
     }
+}
+
+private fun handleFile(
+    file: Path,
+    storageService: StorageService,
+    imagesWithMetadata: MutableList<ImageMetadata>,
+    precedence: Precedence
+) {
+    val tika = Tika()
+    try {
+        when (MediaFormat.fromMimeType(tika.detect(file))) {
+            MediaFormat.JPEG -> {
+                val imageMetadata: ImageMetadata = getImageMetadata(file)
+                when (val existing = storageService.exists(imageMetadata.getReference())) {
+                    null -> handleNewImage(storageService, imageMetadata)
+                    else -> handleExistingImage(existing, imageMetadata, precedence)
+                }
+
+                imagesWithMetadata.add(imageMetadata)
+            }
+
+            else -> println("Ignored ${file.fileName} due to unsupported format")
+        }
+    } catch (e: IOException) {
+        println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
+    }
+}
+
+private fun handleExistingImage(existing: ImageMetadata, imageMetadata: ImageMetadata, precedence: Precedence) {
+    if (existing.hashCode() != imageMetadata.hashCode()) {
+        println("Detected updated image: ${imageMetadata.getAlbumAndFilename()}")
+        // TODO update image
+    } else {
+        println("No change for image: ${imageMetadata.getAlbumAndFilename()}")
+    }
+}
+
+private fun handleNewImage(storageService: StorageService, imageMetadata: ImageMetadata) {
+    val insertId: Int = storageService.insertPostedImage(imageMetadata)
+    imageMetadata.id = insertId
+    println(
+        "New Jpeg image " + imageMetadata.getAlbumAndFilename() +
+            " found. Metadata: " + imageMetadata + ". HashCode: " + imageMetadata.hashCode()
+    )
 }
 
 @Throws(IOException::class)
@@ -150,14 +163,3 @@ private fun getSetOfPaths(path: Path): Set<Path> {
         return setOf()
     }
 }
-
-private const val logo = "ICBfICAgXyBfICAgICAgICAgICAgICAgICAgIA0KIHwgfCB8IChfKV8gX18gIF8gX18gICBfX18gIA0KIH" +
-    "wgfF98IHwgfCAnXyBcfCAnXyBcIC8gXyBcIA0KIHwgIF8gIHwgfCB8XykgfCB8XykgfCAoXykgfA0KIHxffCB8X3xffCAuX18vfCA" +
-    "uX18vIFxfX18vIA0KICAgICAgICAgfF98ICAgfF98ICAgICAgICAgIA=="
-private const val logo2 = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
-    "F98IHxfIF8gX18gIF8gX18gICBfX18gIA0KfCAgXyAgfCB8ICdfIFx8ICdfIFwgLyBfIFwgDQp8IHwgfCB8IHwgfF8pIHwgfF8pIHwg" +
-    "KF8pIHwNClxffCB8X3xffCAuX18vfCAuX18vIFxfX18vIA0KICAgICAgICB8IHwgICB8IHwgICAgICAgICAgDQogICAgICAgIHxffCAg" +
-    "IHxffCAgICAgICAgICA="
-private val name = "SHVnbyBJbWFnZSBQcmVwcm9jZXNzb3I="
-val hippoAppHeader = String(Base64.getDecoder().decode(logo2)) + "   " + String(Base64.getDecoder().decode(name)) +
-    " " + VersionInfo.version() + "\n"
