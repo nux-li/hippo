@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "2.0.20"
+    kotlin("plugin.serialization") version "2.0.20"
     idea
     java
 }
@@ -14,6 +15,10 @@ repositories {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
+    implementation("com.charleskorn.kaml:kaml:0.72.0")
+    implementation("com.akuleshov7:ktoml-core:0.5.1")
+    implementation("com.akuleshov7:ktoml-file:0.5.1")
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
     implementation("com.drewnoakes:metadata-extractor:2.19.0")

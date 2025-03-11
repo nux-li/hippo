@@ -20,6 +20,7 @@ enum class Precedence {
 
 enum class FrontMatterFormat {
     JSON,
+    TOML,
     YAML
 }
 

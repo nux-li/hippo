@@ -1,6 +1,7 @@
 package li.nux.hippo
 
 import java.io.DataInputStream
+import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.file.Files
@@ -9,6 +10,9 @@ import java.nio.file.Paths
 import java.util.Optional
 import java.util.function.Consumer
 import java.util.stream.Collectors
+import kotlin.io.path.exists
+import com.akuleshov7.ktoml.Toml
+import com.charleskorn.kaml.Yaml
 import com.drew.imaging.ImageMetadataReader
 import com.drew.imaging.ImageProcessingException
 import com.drew.metadata.Metadata
@@ -20,7 +24,19 @@ import com.drew.metadata.exif.ExifDirectoryBase.TAG_MAKE
 import com.drew.metadata.exif.ExifDirectoryBase.TAG_MODEL
 import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import li.nux.hippo.FrontMatterFormat.JSON
+import li.nux.hippo.FrontMatterFormat.TOML
+import li.nux.hippo.FrontMatterFormat.YAML
 import org.apache.tika.Tika
+
+@OptIn(ExperimentalSerializationApi::class)
+private val prettyJson = Json { // this returns the JsonBuilder
+    prettyPrint = true
+    encodeDefaults = false
+    prettyPrintIndent = "    "
+}
 
 fun execute(directory: String, precedence: Precedence, format: FrontMatterFormat) {
     StorageService.createTable()
@@ -32,19 +48,15 @@ fun execute(directory: String, precedence: Precedence, format: FrontMatterFormat
 
     if (name == "content") {
         val imagesWithMetadata: MutableList<ImageMetadata> = ArrayList()
+        val imageDataFromPages = extractImageMetadataFromPages(path)
 
         getSetOfPaths(path).stream().sorted().toList().forEach(Consumer { file: Path ->
             if (Files.isRegularFile(file)) {
-                handleFile(file, storageService, imagesWithMetadata, precedence)
+                handleFile(file, storageService, imagesWithMetadata, imageDataFromPages, precedence)
             }
         })
-        val albumMap: Map<String, List<ImageMetadata>> = imagesWithMetadata.groupBy { it.album }
-        albumMap.forEach {
-            println(
-                "Album ${it.key} has ${it.value.size} images. Files to create/update:  ${it.key}.md " +
-                    "${it.value.map { img -> img.getDocumentId() + ".md" }.toList()}"
-            )
-        }
+        createOrReplacePages(imagesWithMetadata.groupBy { it.album }, format)
+
     } else {
         println(
             "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."
@@ -52,23 +64,59 @@ fun execute(directory: String, precedence: Precedence, format: FrontMatterFormat
     }
 }
 
+fun extractImageMetadataFromPages(path: Path): List<ImageMetadata> {
+    println("Extracting images data from path $path")
+    return emptyList()
+}
+
+fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, format: FrontMatterFormat) {
+    albumsWithImages.forEach {
+        println(
+            "Album ${it.key} has ${it.value.size} images. Files to create/update:  ${it.key}.md " +
+                "${it.value.map { img -> img.getDocumentId() + ".md" }.toList()}"
+        )
+        it.value.forEach { im ->
+            val imFile = Paths.get(im.path + File.separator + im.getReference() + ".md")
+            val imf = ImageFrontMatter.from(im)
+            val frontMatter = when (format) {
+                JSON -> prettyJson.encodeToString(imf)
+                TOML -> "+++\n" + Toml.encodeToString(ImageFrontMatter.serializer(), imf) + "\n+++\n"
+                YAML -> "---\n" + Yaml.default.encodeToString(ImageFrontMatter.serializer(), imf) +"\n---\n"
+            }
+
+            when (imFile.exists()) {
+                true -> {
+                    println("File $imFile exists")
+                }
+                false -> {
+                    println("File $imFile does not exist")
+                    println("Front matter to write: \n$frontMatter")
+                }
+            }
+            Files.write(imFile, frontMatter.toByteArray())
+        }
+    }
+}
+
 private fun handleFile(
     file: Path,
     storageService: StorageService,
     imagesWithMetadata: MutableList<ImageMetadata>,
+    imageDataFromPages: List<ImageMetadata>,
     precedence: Precedence
 ) {
     val tika = Tika()
+    println("Number of images extracted: ${imageDataFromPages.size}") // todo use this when handling files
     try {
         when (MediaFormat.fromMimeType(tika.detect(file))) {
             MediaFormat.JPEG -> {
                 val imageMetadata: ImageMetadata = getImageMetadata(file)
-                when (val existing = storageService.exists(imageMetadata.getReference())) {
+                val toBeUsedImage = when (val existing = storageService.exists(imageMetadata.getReference())) {
                     null -> handleNewImage(storageService, imageMetadata)
-                    else -> handleExistingImage(existing, imageMetadata, precedence)
+                    else -> handleExistingImage(storageService, existing, imageMetadata, precedence)
                 }
 
-                imagesWithMetadata.add(imageMetadata)
+                imagesWithMetadata.add(toBeUsedImage)
             }
 
             else -> println("Ignored ${file.fileName} due to unsupported format")
@@ -78,22 +126,31 @@ private fun handleFile(
     }
 }
 
-private fun handleExistingImage(existing: ImageMetadata, imageMetadata: ImageMetadata, precedence: Precedence) {
+private fun handleExistingImage(
+    storageService: StorageService,
+    existing: ImageMetadata,
+    imageMetadata: ImageMetadata,
+    precedence: Precedence,
+): ImageMetadata {
+    println("Precedence: $precedence")
     if (existing.hashCode() != imageMetadata.hashCode()) {
         println("Detected updated image: ${imageMetadata.getAlbumAndFilename()}")
         // TODO update image
+        // storageService.updatePostedImage(imageMetadata) // todo store based on precedence
     } else {
         println("No change for image: ${imageMetadata.getAlbumAndFilename()}")
     }
+    return imageMetadata // todo return based on precedence
 }
 
-private fun handleNewImage(storageService: StorageService, imageMetadata: ImageMetadata) {
+private fun handleNewImage(storageService: StorageService, imageMetadata: ImageMetadata): ImageMetadata {
     val insertId: Int = storageService.insertPostedImage(imageMetadata)
     imageMetadata.id = insertId
     println(
         "New Jpeg image " + imageMetadata.getAlbumAndFilename() +
             " found. Metadata: " + imageMetadata + ". HashCode: " + imageMetadata.hashCode()
     )
+    return imageMetadata
 }
 
 @Throws(IOException::class)
@@ -128,7 +185,7 @@ private fun getImageMetadata(file: Path): ImageMetadata {
                     keywords = iptcDirectory.keywords,
                     exposureDetails = ExposureDetails(
                         focalLength = focalLength,
-                        fStop = fNumber,
+                        aperture = fNumber,
                         exposureTime = exposureTime,
                         iso = iso,
                         cameraMake = make,

@@ -2,6 +2,7 @@ package li.nux.hippo
 
 import java.time.LocalDateTime
 import java.util.Objects
+import kotlinx.serialization.Serializable
 
 data class ImageMetadata(
     var id: Int? = null,
@@ -72,13 +73,19 @@ data class ImageMetadata(
     }
 }
 
+@Serializable
 data class ExposureDetails(
     val focalLength: String? = null,
-    val fStop: String? = null,
+    val aperture: String? = null,
     val exposureTime: String? = null,
     val iso: String? = null,
     val cameraMake: String? = null,
     val cameraModel: String? = null,
-)
+) {
+    fun ifAnyData(): ExposureDetails? {
+        val nonNulls = listOfNotNull(focalLength, aperture, exposureTime, iso, cameraMake, cameraModel)
+        return if (nonNulls.isNotEmpty()) this else null
+    }
+}
 
 fun String.encodeNegIndicator() = this.replace("-", "z")

@@ -40,7 +40,7 @@ class StorageService {
                         keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";"),
                         exposureDetails = ExposureDetails(
                             focalLength = resultSet.getString("focal_length"),
-                            fStop = resultSet.getString("f_number"),
+                            aperture = resultSet.getString("f_number"),
                             exposureTime = resultSet.getString("exposure_time"),
                             iso = resultSet.getString("iso"),
                             cameraMake = resultSet.getString("camera_make"),
@@ -57,6 +57,38 @@ class StorageService {
             null
         }
         return result
+    }
+
+    fun updatePostedImage(img: ImageMetadata) {
+        when (val id = img.id) {
+            null -> throw StorageException("Cannot update posted image. ID is missing")
+            else -> {
+                val connection = connect()
+                val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
+                try {
+                    connection.prepareStatement(UPDATE_POSTED_IMAGE).use { prepped ->
+                        prepped.setInt(1, img.hashCode())
+                        prepped.setString(2, img.title)
+                        prepped.setString(3, img.description)
+                        prepped.setString(4, img.credit)
+                        prepped.setString(5, img.captureDate)
+                        prepped.setString(6, img.captureTime)
+                        prepped.setString(7, java.lang.String.join(", ", img.keywords))
+                        prepped.setString(8, img.exposureDetails?.focalLength)
+                        prepped.setString(9, img.exposureDetails?.aperture)
+                        prepped.setString(10, img.exposureDetails?.exposureTime)
+                        prepped.setString(11, img.exposureDetails?.iso)
+                        prepped.setString(12, img.exposureDetails?.cameraMake)
+                        prepped.setString(13, img.exposureDetails?.cameraModel)
+                        prepped.setString(14, now)
+                        prepped.executeUpdate()
+                    }
+                } catch (e: SQLException) {
+                    log.error("Failed to update posted image with id ${img.id}: {}", e.message)
+                    throw StorageException("Failed to update posted image with id ${img.id}")
+                }
+            }
+        }
     }
 
     fun insertPostedImage(img: ImageMetadata): Int {
@@ -76,7 +108,7 @@ class StorageService {
                 prepped.setString(10, img.captureTime)
                 prepped.setString(11, java.lang.String.join(", ", img.keywords))
                 prepped.setString(12, img.exposureDetails?.focalLength)
-                prepped.setString(13, img.exposureDetails?.fStop)
+                prepped.setString(13, img.exposureDetails?.aperture)
                 prepped.setString(14, img.exposureDetails?.exposureTime)
                 prepped.setString(15, img.exposureDetails?.iso)
                 prepped.setString(16, img.exposureDetails?.cameraMake)
@@ -117,6 +149,23 @@ class StorageService {
                 updated DATETIME NOT NULL
             );"""
 
+        private const val UPDATE_POSTED_IMAGE = """
+            UPDATE posted_image SET 
+                hash_code = ?,
+                title = ?, 
+                description = ?, 
+                credit = ?, 
+                capture_date = ?, 
+                capture_time = ?, 
+                keywords = ?, 
+                focal_length = ?, 
+                f_number = ?, 
+                exposure_time = ?, 
+                iso = ?, 
+                camera_make = ?, 
+                camera_model = ?,
+                updated = ?
+        """
         private const val FIND_BY_IMAGE_ID = "SELECT * FROM posted_image WHERE image_id = ?"
         private const val INSERT_POSTED_IMAGE = """
             INSERT INTO posted_image (
@@ -157,3 +206,5 @@ class StorageService {
         }
     }
 }
+
+class StorageException(message: String): RuntimeException(message)
