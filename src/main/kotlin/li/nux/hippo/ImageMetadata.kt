@@ -19,7 +19,7 @@ data class ImageMetadata(
     val created: LocalDateTime? = null,
     val updated: LocalDateTime? = null,
 ) {
-    fun getReference() = "PIC_" + getDocumentId()
+    fun getReference() = IMG_NAME_PREFIX + getDocumentId()
 
     fun getAlbumId(): String {
         return album.hashCode().toString(RADIX).encodeNegIndicator()
@@ -70,6 +70,7 @@ data class ImageMetadata(
 
     companion object {
         const val RADIX = 35
+        const val IMG_NAME_PREFIX = "PIC_"
     }
 }
 

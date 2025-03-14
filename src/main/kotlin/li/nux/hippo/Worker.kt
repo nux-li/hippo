@@ -26,9 +26,11 @@ import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import li.nux.hippo.FrontMatterFormat.JSON
 import li.nux.hippo.FrontMatterFormat.TOML
 import li.nux.hippo.FrontMatterFormat.YAML
+import li.nux.hippo.ImageMetadata.Companion.IMG_NAME_PREFIX
 import org.apache.tika.Tika
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -38,24 +40,58 @@ private val prettyJson = Json { // this returns the JsonBuilder
     prettyPrintIndent = "    "
 }
 
-fun execute(directory: String, precedence: Precedence, format: FrontMatterFormat) {
+fun execute(
+    directory: String,
+    params: HippoParams,
+) {
     StorageService.createTable()
     val storageService = StorageService()
     val path: Path = Paths.get(directory)
     val name = path.fileName.toString()
     println("Searching " + path.fileName.normalize() + " for image files...")
-    println("Btw. Precedence: $precedence, format: $format")
+    println("Btw. Precedence: ${params.precedence}, format: ${params.frontMatterFormat}")
 
     if (name == "content") {
         val imagesWithMetadata: MutableList<ImageMetadata> = ArrayList()
+        val imagesFromMarkdown: MutableList<ImageMetadata> = ArrayList()
         val imageDataFromPages = extractImageMetadataFromPages(path)
 
         getSetOfPaths(path).stream().sorted().toList().forEach(Consumer { file: Path ->
             if (Files.isRegularFile(file)) {
-                handleFile(file, storageService, imagesWithMetadata, imageDataFromPages, precedence)
+                val tika = Tika()
+                println("Number of images extracted: ${imageDataFromPages.size}") // todo use this when handling files
+                try {
+                    val mimeType = tika.detect(file)
+                    when (MediaFormat.fromMimeType(mimeType)) {
+                        MediaFormat.JPEG -> {
+                            val imageMetadata: ImageMetadata = getImageMetadata(file)
+                            val existingImage = storageService.exists(imageMetadata.getReference())
+                            val toBeUsedImage = when (existingImage) {
+                                null -> handleNewImage(storageService, imageMetadata)
+                                else -> handleExistingImage(storageService, existingImage, imageMetadata, params.precedence)
+                            }
+
+                            imagesWithMetadata.add(toBeUsedImage)
+                        }
+                        MediaFormat.MARKDOWN -> {
+                            if (file.fileName.toString().startsWith(IMG_NAME_PREFIX)) {
+//                                println("Markdown for image: ${file.fileName}")
+                                val imFromMarkdown = getImageDataFromFrontMatter(file).toImageMetadata()
+//                                println("IFM read from file: ${imFromMarkdown.getReference()}")
+                                imagesFromMarkdown.add(imFromMarkdown)
+                            } else {
+                                println("Other page: ${file.fileName}")
+                            }
+                        }
+                        else -> println("Ignored ${file.fileName} due to unsupported format: $mimeType")
+                    }
+                } catch (e: IOException) {
+                    println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
+                }
+//                handleFile(file, storageService, imagesWithMetadata, imageDataFromPages, precedence)
             }
         })
-        createOrReplacePages(imagesWithMetadata.groupBy { it.album }, format)
+        createOrReplacePages(imagesWithMetadata.groupBy { it.album }, params.frontMatterFormat)
 
     } else {
         println(
@@ -108,7 +144,8 @@ private fun handleFile(
     val tika = Tika()
     println("Number of images extracted: ${imageDataFromPages.size}") // todo use this when handling files
     try {
-        when (MediaFormat.fromMimeType(tika.detect(file))) {
+        val mimeType = tika.detect(file)
+        when (MediaFormat.fromMimeType(mimeType)) {
             MediaFormat.JPEG -> {
                 val imageMetadata: ImageMetadata = getImageMetadata(file)
                 val toBeUsedImage = when (val existing = storageService.exists(imageMetadata.getReference())) {
@@ -118,12 +155,41 @@ private fun handleFile(
 
                 imagesWithMetadata.add(toBeUsedImage)
             }
-
-            else -> println("Ignored ${file.fileName} due to unsupported format")
+            MediaFormat.MARKDOWN -> {
+                if (file.fileName.toString().startsWith(IMG_NAME_PREFIX)) {
+                    println("Markdown for image: ${file.fileName}")
+                    val imFromMarkdown = getImageDataFromFrontMatter(file).toImageMetadata()
+                    println("IFM read from file: ${imFromMarkdown.getReference()}")
+                } else {
+                    println("Other page: ${file.fileName}")
+                }
+            }
+            else -> println("Ignored ${file.fileName} due to unsupported format: $mimeType")
         }
     } catch (e: IOException) {
         println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
     }
+}
+
+private fun getImageDataFromFrontMatter(file: Path): ImageFrontMatter {
+    val allLines = Files.readAllLines(file)
+    return when (val fmf = FrontMatterFormat.fromFirstLine(allLines.first())) {
+        JSON -> Json.decodeFromString<ImageFrontMatter>(getFrontMatterPart(fmf, allLines))
+        TOML -> Toml.decodeFromString(
+            serializer(),
+            getFrontMatterPart(fmf, allLines)
+        )
+        YAML -> Yaml.default.decodeFromString(
+            ImageFrontMatter.serializer(),
+            getFrontMatterPart(fmf, allLines)
+        )
+    }
+}
+
+fun getFrontMatterPart(frontMatterFormat: FrontMatterFormat, lines: List<String>): String {
+    val endIndex = lines.lastIndexOf(frontMatterFormat.lastLine)
+    val offset = if (frontMatterFormat.excludeWrappers) 1 else 0
+    return lines.subList(0 + offset, endIndex + 1 - offset).joinToString("\n")
 }
 
 private fun handleExistingImage(

@@ -10,6 +10,10 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 
 class Hippo : CliktCommand() {
+    private val changeStrategy: String by option("-c", "--changes")
+        .choice("front_matter", "image_metadata", "both")
+        .default("both")
+        .help("From which source should changes be accepted?")
     private val precedence: String by option("-p", "--precedence")
         .choice("front_matter", "image_metadata")
         .default("front_matter")
@@ -23,7 +27,14 @@ class Hippo : CliktCommand() {
 
     override fun run() {
         echo(appHeader())
-        execute(directory, precedence.toPrecedence(), format.toFrontMatterFormat())
+        execute(
+            directory,
+            HippoParams(
+                changeStrategy.toChangeAcceptance(),
+                precedence.toPrecedence(),
+                format.toFrontMatterFormat(),
+            )
+        )
     }
 }
 
