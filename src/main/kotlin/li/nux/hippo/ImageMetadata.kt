@@ -1,5 +1,6 @@
 package li.nux.hippo
 
+import java.sql.ResultSet
 import java.time.LocalDateTime
 import java.util.Objects
 import kotlinx.serialization.Serializable
@@ -71,6 +72,29 @@ data class ImageMetadata(
     companion object {
         const val RADIX = 35
         const val IMG_NAME_PREFIX = "PIC_"
+
+        fun fromResultSet(resultSet: ResultSet) = ImageMetadata(
+            id = resultSet.getInt("id"),
+            path = resultSet.getString("path"),
+            album = resultSet.getString("album_name"),
+            filename = resultSet.getString("photo_filename"),
+            title = resultSet.getString("title"),
+            description = resultSet.getString("description"),
+            credit = resultSet.getString("credit"),
+            captureDate = resultSet.getString("capture_date"),
+            captureTime = resultSet.getString("capture_time"),
+            keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";"),
+            exposureDetails = ExposureDetails(
+                focalLength = resultSet.getString("focal_length"),
+                aperture = resultSet.getString("f_number"),
+                exposureTime = resultSet.getString("exposure_time"),
+                iso = resultSet.getString("iso"),
+                cameraMake = resultSet.getString("camera_make"),
+                cameraModel = resultSet.getString("camera_model"),
+            ),
+            created = resultSet.getTimestamp("created").toLocalDateTime(),
+            updated = resultSet.getTimestamp("updated").toLocalDateTime(),
+        )
     }
 }
 

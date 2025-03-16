@@ -8,7 +8,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Optional
-import java.util.function.Consumer
 import java.util.stream.Collectors
 import kotlin.io.path.exists
 import com.akuleshov7.ktoml.Toml
@@ -52,47 +51,59 @@ fun execute(
     println("Btw. Precedence: ${params.precedence}, format: ${params.frontMatterFormat}")
 
     if (name == "content") {
-        val imagesWithMetadata: MutableList<ImageMetadata> = ArrayList()
-        val imagesFromMarkdown: MutableList<ImageMetadata> = ArrayList()
-        val imageDataFromPages = extractImageMetadataFromPages(path)
+        val tika = Tika()
+        val images: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
 
-        getSetOfPaths(path).stream().sorted().toList().forEach(Consumer { file: Path ->
-            if (Files.isRegularFile(file)) {
-                val tika = Tika()
-                println("Number of images extracted: ${imageDataFromPages.size}") // todo use this when handling files
-                try {
-                    val mimeType = tika.detect(file)
-                    when (MediaFormat.fromMimeType(mimeType)) {
-                        MediaFormat.JPEG -> {
-                            val imageMetadata: ImageMetadata = getImageMetadata(file)
-                            val existingImage = storageService.exists(imageMetadata.getReference())
-                            val toBeUsedImage = when (existingImage) {
-                                null -> handleNewImage(storageService, imageMetadata)
-                                else -> handleExistingImage(storageService, existingImage, imageMetadata, params.precedence)
-                            }
+        val paths = getSetOfPaths(path).stream().sorted().toList().filter { Files.isRegularFile(it) }
+        // Fetch all images from previous run
+        images.putAll(storageService.fetchAllImages().map { it.getReference() to it })
 
-                            imagesWithMetadata.add(toBeUsedImage)
-                        }
-                        MediaFormat.MARKDOWN -> {
-                            if (file.fileName.toString().startsWith(IMG_NAME_PREFIX)) {
-//                                println("Markdown for image: ${file.fileName}")
-                                val imFromMarkdown = getImageDataFromFrontMatter(file).toImageMetadata()
-//                                println("IFM read from file: ${imFromMarkdown.getReference()}")
-                                imagesFromMarkdown.add(imFromMarkdown)
-                            } else {
-                                println("Other page: ${file.fileName}")
-                            }
-                        }
-                        else -> println("Ignored ${file.fileName} due to unsupported format: $mimeType")
-                    }
-                } catch (e: IOException) {
-                    println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
+        // Read all images from disk
+        val imagesFromDisk: List<ImageMetadata> = paths.filter {
+            tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
+        }.map { getImageMetadata(it) }
+
+        // Read all markdown front matters from disk
+        val imagesFromFrontMatters: List<ImageMetadata> = paths
+            .filter { it.fileName.startsWith(IMG_NAME_PREFIX) }
+            .filter {
+                tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.MARKDOWN }
+            }.map { getImageDataFromFrontMatter(it).toImageMetadata() }
+
+        // Compare and store in database based on params
+        val imagesChangedOnDisk: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+        val frontMatterChanged: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+        val toBeInsertedInDb: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
+        val toBeDeletedFromDb: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+        imagesFromDisk.forEach { fromDisk ->
+            if (images.keys.contains(fromDisk.getReference())) {
+                if (images[fromDisk.getReference()].hashCode() != fromDisk.hashCode()) {
+                    imagesChangedOnDisk.add(fromDisk)
                 }
-//                handleFile(file, storageService, imagesWithMetadata, imageDataFromPages, precedence)
+            } else {
+                toBeInsertedInDb.put(fromDisk.getReference(), fromDisk)
             }
-        })
-        createOrReplacePages(imagesWithMetadata.groupBy { it.album }, params.frontMatterFormat)
+        }
 
+        imagesFromFrontMatters.forEach { fromFrontMatter ->
+            if (images.keys.contains(fromFrontMatter.getReference())) {
+                if (images[fromFrontMatter.getReference()].hashCode() != fromFrontMatter.hashCode()) {
+                    frontMatterChanged.add(fromFrontMatter)
+                }
+            }
+        }
+        images.forEach {
+            if (it.key !in imagesFromDisk.map { it.getReference() }) toBeDeletedFromDb.add(it.value)
+        }
+
+        val updateList = getUpdateList(params, imagesChangedOnDisk, frontMatterChanged)
+
+        toBeInsertedInDb.values.forEach { handleNewImage(storageService, it) }
+        updateList.forEach { handleUpdate(storageService, images[it.getReference()]?.id!!, it) }
+        toBeDeletedFromDb.forEach { handleDelete(storageService, it) }
+
+        // DB is updated. Now handle markdown files
+        createOrReplacePages(storageService.fetchAllImages().groupBy { it.getAlbumId() }, params.frontMatterFormat)
     } else {
         println(
             "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."
@@ -100,9 +111,19 @@ fun execute(
     }
 }
 
-fun extractImageMetadataFromPages(path: Path): List<ImageMetadata> {
-    println("Extracting images data from path $path")
-    return emptyList()
+private fun getUpdateList(
+    params: HippoParams,
+    imagesChangedOnDisk: MutableList<ImageMetadata>,
+    frontMatterChanged: MutableList<ImageMetadata>
+) = when (params.changeAcceptance) {
+    ChangeAcceptance.ACCEPT_CHANGES_IN_METADATA -> imagesChangedOnDisk
+    ChangeAcceptance.ACCEPT_CHANGES_IN_MARKDOWN -> frontMatterChanged
+    ChangeAcceptance.ACCEPT_FROM_BOTH -> {
+        when (params.precedence) {
+            Precedence.FRONT_MATTER -> frontMatterChanged
+            Precedence.IMAGE_METADATA -> imagesChangedOnDisk
+        }
+    }
 }
 
 fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, format: FrontMatterFormat) {
@@ -134,43 +155,6 @@ fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, for
     }
 }
 
-private fun handleFile(
-    file: Path,
-    storageService: StorageService,
-    imagesWithMetadata: MutableList<ImageMetadata>,
-    imageDataFromPages: List<ImageMetadata>,
-    precedence: Precedence
-) {
-    val tika = Tika()
-    println("Number of images extracted: ${imageDataFromPages.size}") // todo use this when handling files
-    try {
-        val mimeType = tika.detect(file)
-        when (MediaFormat.fromMimeType(mimeType)) {
-            MediaFormat.JPEG -> {
-                val imageMetadata: ImageMetadata = getImageMetadata(file)
-                val toBeUsedImage = when (val existing = storageService.exists(imageMetadata.getReference())) {
-                    null -> handleNewImage(storageService, imageMetadata)
-                    else -> handleExistingImage(storageService, existing, imageMetadata, precedence)
-                }
-
-                imagesWithMetadata.add(toBeUsedImage)
-            }
-            MediaFormat.MARKDOWN -> {
-                if (file.fileName.toString().startsWith(IMG_NAME_PREFIX)) {
-                    println("Markdown for image: ${file.fileName}")
-                    val imFromMarkdown = getImageDataFromFrontMatter(file).toImageMetadata()
-                    println("IFM read from file: ${imFromMarkdown.getReference()}")
-                } else {
-                    println("Other page: ${file.fileName}")
-                }
-            }
-            else -> println("Ignored ${file.fileName} due to unsupported format: $mimeType")
-        }
-    } catch (e: IOException) {
-        println(file.toAbsolutePath().toString() + " could not be detected: " + e.message)
-    }
-}
-
 private fun getImageDataFromFrontMatter(file: Path): ImageFrontMatter {
     val allLines = Files.readAllLines(file)
     return when (val fmf = FrontMatterFormat.fromFirstLine(allLines.first())) {
@@ -192,22 +176,18 @@ fun getFrontMatterPart(frontMatterFormat: FrontMatterFormat, lines: List<String>
     return lines.subList(0 + offset, endIndex + 1 - offset).joinToString("\n")
 }
 
-private fun handleExistingImage(
+private fun handleUpdate(
     storageService: StorageService,
-    existing: ImageMetadata,
+    id: Int,
     imageMetadata: ImageMetadata,
-    precedence: Precedence,
-): ImageMetadata {
-    println("Precedence: $precedence")
-    if (existing.hashCode() != imageMetadata.hashCode()) {
-        println("Detected updated image: ${imageMetadata.getAlbumAndFilename()}")
-        // TODO update image
-        // storageService.updatePostedImage(imageMetadata) // todo store based on precedence
-    } else {
-        println("No change for image: ${imageMetadata.getAlbumAndFilename()}")
-    }
-    return imageMetadata // todo return based on precedence
+) {
+    storageService.updatePostedImage(id, imageMetadata)
 }
+
+fun handleDelete(storageService: StorageService, imageMetadata: ImageMetadata) {
+    storageService.removePostedImage(imageMetadata.id!!, imageMetadata.getReference())
+}
+
 
 private fun handleNewImage(storageService: StorageService, imageMetadata: ImageMetadata): ImageMetadata {
     val insertId: Int = storageService.insertPostedImage(imageMetadata)

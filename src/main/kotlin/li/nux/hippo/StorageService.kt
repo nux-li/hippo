@@ -2,9 +2,11 @@ package li.nux.hippo
 
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.ResultSet
 import java.sql.SQLException
 import java.text.SimpleDateFormat
 import java.util.Date
+import li.nux.hippo.ImageMetadata.Companion.fromResultSet
 import mu.KotlinLogging
 
 private const val DATABASE_URL = "jdbc:sqlite:hippo.db"
@@ -20,6 +22,7 @@ fun connect(): Connection {
 }
 
 class StorageService {
+    @Deprecated("To be removed")
     fun exists(imageId: String): ImageMetadata? {
         val connection = connect()
         val result = try {
@@ -27,28 +30,7 @@ class StorageService {
                 prepped.setString(1, imageId)
                 val resultSet = prepped.executeQuery()
                 while (resultSet.next()) {
-                    return ImageMetadata(
-                        id = resultSet.getInt("id"),
-                        path = resultSet.getString("path"),
-                        album = resultSet.getString("album_name"),
-                        filename = resultSet.getString("photo_filename"),
-                        title = resultSet.getString("title"),
-                        description = resultSet.getString("description"),
-                        credit = resultSet.getString("credit"),
-                        captureDate = resultSet.getString("capture_date"),
-                        captureTime = resultSet.getString("capture_time"),
-                        keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";"),
-                        exposureDetails = ExposureDetails(
-                            focalLength = resultSet.getString("focal_length"),
-                            aperture = resultSet.getString("f_number"),
-                            exposureTime = resultSet.getString("exposure_time"),
-                            iso = resultSet.getString("iso"),
-                            cameraMake = resultSet.getString("camera_make"),
-                            cameraModel = resultSet.getString("camera_model"),
-                        ),
-                        created = resultSet.getTimestamp("created").toLocalDateTime(),
-                        updated = resultSet.getTimestamp("updated").toLocalDateTime(),
-                    )
+                    return fromResultSet(resultSet)
                 }
                 null
             }
@@ -59,35 +41,56 @@ class StorageService {
         return result
     }
 
-    fun updatePostedImage(img: ImageMetadata) {
-        when (val id = img.id) {
-            null -> throw StorageException("Cannot update posted image. ID is missing")
-            else -> {
-                val connection = connect()
-                val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
-                try {
-                    connection.prepareStatement(UPDATE_POSTED_IMAGE).use { prepped ->
-                        prepped.setInt(1, img.hashCode())
-                        prepped.setString(2, img.title)
-                        prepped.setString(3, img.description)
-                        prepped.setString(4, img.credit)
-                        prepped.setString(5, img.captureDate)
-                        prepped.setString(6, img.captureTime)
-                        prepped.setString(7, java.lang.String.join(", ", img.keywords))
-                        prepped.setString(8, img.exposureDetails?.focalLength)
-                        prepped.setString(9, img.exposureDetails?.aperture)
-                        prepped.setString(10, img.exposureDetails?.exposureTime)
-                        prepped.setString(11, img.exposureDetails?.iso)
-                        prepped.setString(12, img.exposureDetails?.cameraMake)
-                        prepped.setString(13, img.exposureDetails?.cameraModel)
-                        prepped.setString(14, now)
-                        prepped.executeUpdate()
-                    }
-                } catch (e: SQLException) {
-                    log.error("Failed to update posted image with id ${img.id}: {}", e.message)
-                    throw StorageException("Failed to update posted image with id ${img.id}")
+    fun fetchAllImages(): List<ImageMetadata> {
+        val images = mutableListOf<ImageMetadata>()
+        val connection = connect()
+        try {
+            connection.createStatement().use { statement ->
+                statement.executeQuery(FETCH_ALL).use { resultSet ->
+                    getImagesFromResultSet(resultSet, images)
                 }
             }
+        } catch (e: SQLException) {
+            log.error("Failed to fetch images: {}", e.message)
+            throw StorageException("Failed to fetch images")
+        }
+        log.info("Found ${images.size} images")
+        return images
+    }
+
+    private fun getImagesFromResultSet(resultSet: ResultSet, images: MutableList<ImageMetadata>) {
+        while (resultSet.next()) {
+            images.add(
+                fromResultSet(resultSet)
+            )
+        }
+    }
+
+    fun updatePostedImage(id: Int, img: ImageMetadata) {
+        val connection = connect()
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
+        try {
+            connection.prepareStatement(UPDATE_POSTED_IMAGE).use { prepped ->
+                prepped.setInt(1, img.hashCode())
+                prepped.setString(2, img.title)
+                prepped.setString(3, img.description)
+                prepped.setString(4, img.credit)
+                prepped.setString(5, img.captureDate)
+                prepped.setString(6, img.captureTime)
+                prepped.setString(7, java.lang.String.join(", ", img.keywords))
+                prepped.setString(8, img.exposureDetails?.focalLength)
+                prepped.setString(9, img.exposureDetails?.aperture)
+                prepped.setString(10, img.exposureDetails?.exposureTime)
+                prepped.setString(11, img.exposureDetails?.iso)
+                prepped.setString(12, img.exposureDetails?.cameraMake)
+                prepped.setString(13, img.exposureDetails?.cameraModel)
+                prepped.setString(14, now)
+                prepped.setInt(14, id)
+                prepped.executeUpdate()
+            }
+        } catch (e: SQLException) {
+            log.error("Failed to update posted image with id ${img.id}: {}", e.message)
+            throw StorageException("Failed to update posted image with id ${img.id}")
         }
     }
 
@@ -121,6 +124,20 @@ class StorageService {
         } catch (e: SQLException) {
             System.err.println(e.message)
             return -1
+        }
+    }
+
+    fun removePostedImage(id: Int, imageId: String) {
+        val connection = connect()
+        try {
+            connection.prepareStatement(DELETE_POSTED_IMAGE).use { prepped ->
+                prepped.setInt(1, id)
+                prepped.setString(1, imageId)
+                prepped.executeUpdate()
+            }
+        } catch (e: SQLException) {
+            log.error("Failed to delete posted image with id $id: {}", e.message)
+            throw StorageException("Failed to delete posted image with id $id")
         }
     }
 
@@ -165,8 +182,11 @@ class StorageService {
                 camera_make = ?, 
                 camera_model = ?,
                 updated = ?
+            WHERE id = ?
         """
         private const val FIND_BY_IMAGE_ID = "SELECT * FROM posted_image WHERE image_id = ?"
+        private const val FETCH_ALL = "SELECT * FROM posted_image ORDER BY image_id"
+        private const val DELETE_POSTED_IMAGE = "DELETE FROM posted_image where id = ? and image_id = ?"
         private const val INSERT_POSTED_IMAGE = """
             INSERT INTO posted_image (
                 image_id, 
