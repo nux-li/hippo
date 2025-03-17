@@ -56,10 +56,21 @@ fun String.toFrontMatterFormat(): FrontMatterFormat {
     return FrontMatterFormat.valueOf(this.uppercase())
 }
 
+fun printIf(params: HippoParams, string: String) {
+    if (params.verbose) {
+        println(string)
+    }
+}
+
+fun printError(string: String) {
+    println(string)
+}
+
 data class HippoParams(
     val changeAcceptance: ChangeAcceptance,
     val precedence: Precedence,
     val frontMatterFormat: FrontMatterFormat,
+    val verbose: Boolean = false,
 )
 
 class ParseException(message: String): RuntimeException(message)

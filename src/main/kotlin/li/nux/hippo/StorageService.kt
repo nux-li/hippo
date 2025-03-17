@@ -54,7 +54,6 @@ class StorageService {
             log.error("Failed to fetch images: {}", e.message)
             throw StorageException("Failed to fetch images")
         }
-        log.info("Found ${images.size} images")
         return images
     }
 

@@ -1,35 +1,7 @@
 package li.nux.hippo
 
-import java.io.DataInputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
-import java.util.Optional
-import java.util.stream.Collectors
-import kotlin.io.path.exists
-import com.akuleshov7.ktoml.Toml
-import com.charleskorn.kaml.Yaml
-import com.drew.imaging.ImageMetadataReader
-import com.drew.imaging.ImageProcessingException
-import com.drew.metadata.Metadata
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_EXPOSURE_TIME
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_FNUMBER
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_FOCAL_LENGTH
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_ISO_EQUIVALENT
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_MAKE
-import com.drew.metadata.exif.ExifDirectoryBase.TAG_MODEL
-import com.drew.metadata.exif.ExifSubIFDDirectory
-import com.drew.metadata.iptc.IptcDirectory
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.serializer
-import li.nux.hippo.FrontMatterFormat.JSON
-import li.nux.hippo.FrontMatterFormat.TOML
-import li.nux.hippo.FrontMatterFormat.YAML
-import li.nux.hippo.ImageMetadata.Companion.IMG_NAME_PREFIX
 import li.nux.hippo.TaskResult.ALBUMS_FROM_PREVIOUS_RUN
 import li.nux.hippo.TaskResult.CHANGED_FRONT_MATTERS
 import li.nux.hippo.TaskResult.CHANGED_IMAGE_FILES
@@ -38,14 +10,14 @@ import li.nux.hippo.TaskResult.IMAGES_FROM_PREVIOUS_RUN
 import li.nux.hippo.TaskResult.NEW_ALBUM_TOTAL
 import li.nux.hippo.TaskResult.NEW_IMAGES
 import li.nux.hippo.TaskResult.NEW_IMAGE_TOTAL
+import li.nux.hippo.helpers.createOrReplacePages
+import li.nux.hippo.helpers.getAllImagesFromDisk
+import li.nux.hippo.helpers.getImagesFromFrontMatters
+import li.nux.hippo.helpers.getSetOfPaths
+import li.nux.hippo.helpers.handleDelete
+import li.nux.hippo.helpers.handleNewImage
+import li.nux.hippo.helpers.handleUpdate
 import org.apache.tika.Tika
-
-@OptIn(ExperimentalSerializationApi::class)
-private val prettyJson = Json { // this returns the JsonBuilder
-    prettyPrint = true
-    encodeDefaults = false
-    prettyPrintIndent = "    "
-}
 
 fun init() {
     StorageService.createTable()
@@ -57,8 +29,11 @@ fun execute(
 ) {
     val storageService = StorageService()
     val taskResults: MutableMap<TaskResult, Int> = TaskResult.initMap()
-    println("Searching " + path.fileName.normalize() + " for image files...")
-    println("Btw. Precedence: ${params.precedence}, format: ${params.frontMatterFormat}")
+    printIf(params, "Searching " + path.fileName.normalize() + " for image files...")
+    printIf(
+        params,
+        "Btw. Verbose: ${params.verbose}, Precedence: ${params.precedence}, format: ${params.frontMatterFormat}"
+    )
 
     synchronizeImages(path, storageService, taskResults, params)
 
@@ -70,7 +45,7 @@ fun execute(
                 taskResults[NEW_ALBUM_TOTAL] = it.groupBy { im -> im.album }.keys.size
             }
             .groupBy { it.getAlbumId() },
-        params.frontMatterFormat
+        params
     )
     printResult(taskResults)
 }
@@ -96,7 +71,7 @@ private fun synchronizeImages(
     )
 
     // Read all images from disk
-    val imagesFromDisk: List<ImageMetadata> = getAllImagesFromDisk(paths, tika)
+    val imagesFromDisk: List<ImageMetadata> = getAllImagesFromDisk(paths, tika, params)
 
     // Read all markdown front matters from disk
     val imagesFromFrontMatters: List<ImageMetadata> = getImagesFromFrontMatters(paths, tika)
@@ -112,7 +87,7 @@ private fun synchronizeImages(
                 imagesChangedOnDisk.add(fromDisk)
             }
         } else {
-            toBeInsertedInDb.put(fromDisk.getReference(), fromDisk)
+            toBeInsertedInDb[fromDisk.getReference()] = fromDisk
         }
     }
 
@@ -124,7 +99,7 @@ private fun synchronizeImages(
         }
     }
     images.forEach {
-        if (it.key !in imagesFromDisk.map { it.getReference() }) toBeDeletedFromDb.add(it.value)
+        if (it.key !in imagesFromDisk.map { im -> im.getReference() }) toBeDeletedFromDb.add(it.value)
     }
     taskResults[CHANGED_IMAGE_FILES] = imagesChangedOnDisk.size
     taskResults[CHANGED_FRONT_MATTERS] = frontMatterChanged.size
@@ -132,31 +107,9 @@ private fun synchronizeImages(
     taskResults[DELETED_IMAGES] = toBeDeletedFromDb.size
     val updateList = getUpdateList(params, imagesChangedOnDisk, frontMatterChanged)
 
-    toBeInsertedInDb.values.forEach { handleNewImage(storageService, it) }
+    toBeInsertedInDb.values.forEach { handleNewImage(storageService, it, params) }
     updateList.forEach { handleUpdate(storageService, images[it.getReference()]?.id!!, it) }
     toBeDeletedFromDb.forEach { handleDelete(storageService, it) }
-}
-
-private fun getImagesFromFrontMatters(
-    paths: List<Path>,
-    tika: Tika
-) = paths
-    .filter { it.fileName.startsWith(IMG_NAME_PREFIX) }
-    .filter {
-        tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.MARKDOWN }
-    }.map { getImageDataFromFrontMatter(it).toImageMetadata() }
-
-private fun getAllImagesFromDisk(
-    paths: List<Path>,
-    tika: Tika
-) = paths.filter {
-    tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
-}.map { getImageMetadata(it) }
-
-fun printResult(taskResults: MutableMap<TaskResult, Int>) {
-    taskResults.forEach {
-        println("${it.key.description}: ${it.value}")
-    }
 }
 
 private fun getUpdateList(
@@ -174,143 +127,8 @@ private fun getUpdateList(
     }
 }
 
-fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, format: FrontMatterFormat) {
-    albumsWithImages.forEach {
-        println(
-            "Album ${it.key} has ${it.value.size} images. Files to create/update:  ${it.key}.md " +
-                "${it.value.map { img -> img.getDocumentId() + ".md" }.toList()}"
-        )
-        it.value.forEach { im ->
-            val imFile = Paths.get(im.path + File.separator + im.getReference() + ".md")
-            val imf = ImageFrontMatter.from(im)
-            val frontMatter = when (format) {
-                JSON -> prettyJson.encodeToString(imf)
-                TOML -> "+++\n" + Toml.encodeToString(ImageFrontMatter.serializer(), imf) + "\n+++\n"
-                YAML -> "---\n" + Yaml.default.encodeToString(ImageFrontMatter.serializer(), imf) +"\n---\n"
-            }
-
-            when (imFile.exists()) {
-                true -> {
-                    println("File $imFile exists")
-                }
-                false -> {
-                    println("File $imFile does not exist")
-                    println("Front matter to write: \n$frontMatter")
-                }
-            }
-            Files.write(imFile, frontMatter.toByteArray())
-        }
-    }
-}
-
-private fun getImageDataFromFrontMatter(file: Path): ImageFrontMatter {
-    val allLines = Files.readAllLines(file)
-    return when (val fmf = FrontMatterFormat.fromFirstLine(allLines.first())) {
-        JSON -> Json.decodeFromString<ImageFrontMatter>(getFrontMatterPart(fmf, allLines))
-        TOML -> Toml.decodeFromString(
-            serializer(),
-            getFrontMatterPart(fmf, allLines)
-        )
-        YAML -> Yaml.default.decodeFromString(
-            ImageFrontMatter.serializer(),
-            getFrontMatterPart(fmf, allLines)
-        )
-    }
-}
-
-fun getFrontMatterPart(frontMatterFormat: FrontMatterFormat, lines: List<String>): String {
-    val endIndex = lines.lastIndexOf(frontMatterFormat.lastLine)
-    val offset = if (frontMatterFormat.excludeWrappers) 1 else 0
-    return lines.subList(0 + offset, endIndex + 1 - offset).joinToString("\n")
-}
-
-private fun handleUpdate(
-    storageService: StorageService,
-    id: Int,
-    imageMetadata: ImageMetadata,
-) {
-    storageService.updatePostedImage(id, imageMetadata)
-}
-
-fun handleDelete(storageService: StorageService, imageMetadata: ImageMetadata) {
-    storageService.removePostedImage(imageMetadata.id!!, imageMetadata.getReference())
-}
-
-
-private fun handleNewImage(storageService: StorageService, imageMetadata: ImageMetadata): ImageMetadata {
-    val insertId: Int = storageService.insertPostedImage(imageMetadata)
-    imageMetadata.id = insertId
-    println(
-        "New Jpeg image " + imageMetadata.getAlbumAndFilename() +
-            " found. Metadata: " + imageMetadata + ". HashCode: " + imageMetadata.hashCode()
-    )
-    return imageMetadata
-}
-
-@Throws(IOException::class)
-private fun getImageMetadata(file: Path): ImageMetadata {
-    var imageMetadata: ImageMetadata
-    val path = file.parent.toAbsolutePath().normalize().toString()
-    val album = file.parent.fileName.toString().replace("content", "")
-    val filename = file.fileName.toString()
-    try {
-        val metadata: Metadata = getMetadata(file)
-        val maybeExif = metadata.getDirectoriesOfType(ExifSubIFDDirectory::class.java).stream().findFirst()
-        val focalLength = maybeExif.map { exif -> exif.getDescription(TAG_FOCAL_LENGTH) }.orElse("")
-        val fNumber = maybeExif.map { exif -> exif.getDescription(TAG_FNUMBER) }.orElse("")
-        val exposureTime = maybeExif.map { exif -> exif.getDescription(TAG_EXPOSURE_TIME) }.orElse("")
-        val iso = maybeExif.map { exif -> exif.getDescription(TAG_ISO_EQUIVALENT) }.orElse("")
-        val make = maybeExif.map { exif -> exif.getString(TAG_MAKE) }.orElse("")
-        val model = maybeExif.map { exif -> exif.getString(TAG_MODEL) }.orElse("")
-        println("fStop: $fNumber,exposure: $exposureTime,iso: $iso,Make: $make,Model: $model")
-
-        imageMetadata = metadata.getDirectoriesOfType(IptcDirectory::class.java).stream()
-            .findFirst()
-            .map { iptcDirectory: IptcDirectory ->
-                ImageMetadata(
-                    path = path,
-                    album = album,
-                    filename = filename,
-                    title = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME),
-                    description = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION),
-                    credit = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CREDIT),
-                    captureDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED),
-                    captureTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED),
-                    keywords = iptcDirectory.keywords,
-                    exposureDetails = ExposureDetails(
-                        focalLength = focalLength,
-                        aperture = fNumber,
-                        exposureTime = exposureTime,
-                        iso = iso,
-                        cameraMake = make,
-                        cameraModel = model,
-                    )
-                )
-            }.orElse(ImageMetadata(path = path, album = album, filename = filename))
-    } catch (e: ImageProcessingException) {
-        println("Could not get metadata for " + file.toAbsolutePath() + ": " + e.message)
-        imageMetadata = ImageMetadata(path = path, album = album, filename = filename)
-    }
-    return imageMetadata
-}
-
-private fun getValueFromIptc(iptcDirectory: IptcDirectory, tagId: Int): String {
-    return Optional.ofNullable(iptcDirectory.getObject(tagId)).map { obj: Any -> obj.toString() }
-        .orElse("")
-}
-
-@Throws(ImageProcessingException::class, IOException::class)
-private fun getMetadata(file: Path): Metadata {
-    return ImageMetadataReader.readMetadata(DataInputStream(FileInputStream(file.toFile())))
-}
-
-private fun getSetOfPaths(path: Path): Set<Path> {
-    try {
-        Files.walk(path).use { stream ->
-            return stream.collect(Collectors.toSet())
-        }
-    } catch (e: IOException) {
-        println("Failed to get files from path ${path.toAbsolutePath()}: " + e.message)
-        return setOf()
+fun printResult(taskResults: MutableMap<TaskResult, Int>) {
+    taskResults.forEach {
+        println("${it.key.description}: ${it.value}")
     }
 }

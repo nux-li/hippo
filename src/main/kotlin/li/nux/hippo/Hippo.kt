@@ -9,6 +9,7 @@ import com.github.ajalt.clikt.parameters.arguments.help
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.types.choice
 
 class Hippo : CliktCommand() {
@@ -24,6 +25,10 @@ class Hippo : CliktCommand() {
         .choice("json", "toml", "yaml")
         .default("toml")
         .help("The format to be used for front matter segment")
+    private val verbose: String by option("--verbose")
+        .optionalValue("true")
+        .default("false")
+        .help("Log detailed information")
     private val directory: String by argument()
         .help("Path to the content directory for your Hugo website project")
 
@@ -37,6 +42,7 @@ class Hippo : CliktCommand() {
                     changeStrategy.toChangeAcceptance(),
                     precedence.toPrecedence(),
                     format.toFrontMatterFormat(),
+                    verbose.toBoolean(),
                 )
             )
         } ?: {
