@@ -29,6 +29,10 @@ private val prettyJson = Json { // this returns the JsonBuilder
     prettyPrintIndent = "    "
 }
 
+private const val TOML_WRAPPING = "+++\n"
+private const val YAML_WRAPPING = "---\n"
+private fun tomlWrap(string: String): String = TOML_WRAPPING + string + "\n$TOML_WRAPPING"
+private fun yamlWrap(string: String): String = YAML_WRAPPING + string + "\n$YAML_WRAPPING"
 
 fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params: HippoParams) {
     printIf(params, "(Re-)creating album markdown files for ${allImages.keys.size} albums")
@@ -45,8 +49,8 @@ fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, par
             val imf = ImageFrontMatter.from(im)
             val frontMatter = when (params.frontMatterFormat) {
                 JSON -> prettyJson.encodeToString(imf)
-                TOML -> "+++\n" + Toml.encodeToString(ImageFrontMatter.serializer(), imf) + "\n+++\n"
-                YAML -> "---\n" + Yaml.default.encodeToString(ImageFrontMatter.serializer(), imf) +"\n---\n"
+                TOML -> tomlWrap(Toml.encodeToString(ImageFrontMatter.serializer(), imf))
+                YAML -> yamlWrap(Yaml.default.encodeToString(ImageFrontMatter.serializer(), imf))
             }
 
             when (imFile.exists()) {
