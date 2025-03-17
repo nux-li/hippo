@@ -2,16 +2,16 @@ package li.nux.hippo
 
 import java.util.Base64
 
-private const val logo = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
+private const val LOGO = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
     "F98IHxfIF8gX18gIF8gX18gICBfX18gIA0KfCAgXyAgfCB8ICdfIFx8ICdfIFwgLyBfIFwgDQp8IHwgfCB8IHwgfF8pIHwgfF8pIHwg" +
     "KF8pIHwNClxffCB8X3xffCAuX18vfCAuX18vIFxfX18vIA0KICAgICAgICB8IHwgICB8IHwgICAgICAgICAgDQogICAgICAgIHxffCAg" +
     "IHxffCAgICAgICAgICA="
-private val name = "SHVnbyBJbWFnZSBQcmVwcm9jZXNzb3I="
-private val line = "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIOKAviAgICDigL4gICAgIOKAviAg4oC+ICAgICAg4oC+"
+private const val NAME = "SHVnbyBJbWFnZSBQcmVwcm9jZXNzb3I="
+private const val LINE = "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIOKAviAgICDigL4gICAgIOKAviAg4oC+ICAgICAg4oC+"
 
-fun appHeader() = String(Base64.getDecoder().decode(logo)) + " " +
-    String(Base64.getDecoder().decode(name)) + " ~ " + VersionInfo.version() + "\n" +
-    String(Base64.getDecoder().decode(line)) + "\n"
+fun appHeader() = String(Base64.getDecoder().decode(LOGO)) + " " +
+    String(Base64.getDecoder().decode(NAME)) + " ~ " + VersionInfo.version() + "\n" +
+    String(Base64.getDecoder().decode(LINE)) + "\n"
 
 enum class ChangeAcceptance(val short: String) {
     ACCEPT_CHANGES_IN_METADATA("image_metadata"),

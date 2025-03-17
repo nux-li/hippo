@@ -17,6 +17,7 @@ import li.nux.hippo.helpers.getSetOfPaths
 import li.nux.hippo.helpers.handleDelete
 import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
+import li.nux.hippo.helpers.updateAlbumMarkdownDocs
 import org.apache.tika.Tika
 
 fun init() {
@@ -38,15 +39,14 @@ fun execute(
     synchronizeImages(path, storageService, taskResults, params)
 
     // DB is updated. Now handle markdown files
-    createOrReplacePages(
-        storageService.fetchAllImages()
-            .also {
-                taskResults[NEW_IMAGE_TOTAL] = it.size
-                taskResults[NEW_ALBUM_TOTAL] = it.groupBy { im -> im.album }.keys.size
-            }
-            .groupBy { it.getAlbumId() },
-        params
-    )
+    val allImages = storageService.fetchAllImages()
+        .also {
+            taskResults[NEW_IMAGE_TOTAL] = it.size
+            taskResults[NEW_ALBUM_TOTAL] = it.groupBy { im -> im.album }.keys.size
+        }
+        .groupBy { it.getAlbumId() }
+        .also { createOrReplacePages(it, params) }
+    updateAlbumMarkdownDocs(allImages, params)
     printResult(taskResults)
 }
 

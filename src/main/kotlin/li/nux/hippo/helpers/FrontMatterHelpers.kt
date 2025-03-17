@@ -29,6 +29,12 @@ private val prettyJson = Json { // this returns the JsonBuilder
     prettyPrintIndent = "    "
 }
 
+
+fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params: HippoParams) {
+    printIf(params, "(Re-)creating album markdown files for ${allImages.keys.size} albums")
+    TODO("Not yet implemented")
+}
+
 fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, params: HippoParams) {
     albumsWithImages.forEach {
         printIf(params,
