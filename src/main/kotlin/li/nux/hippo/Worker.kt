@@ -30,6 +30,14 @@ import li.nux.hippo.FrontMatterFormat.JSON
 import li.nux.hippo.FrontMatterFormat.TOML
 import li.nux.hippo.FrontMatterFormat.YAML
 import li.nux.hippo.ImageMetadata.Companion.IMG_NAME_PREFIX
+import li.nux.hippo.TaskResult.ALBUMS_FROM_PREVIOUS_RUN
+import li.nux.hippo.TaskResult.CHANGED_FRONT_MATTERS
+import li.nux.hippo.TaskResult.CHANGED_IMAGE_FILES
+import li.nux.hippo.TaskResult.DELETED_IMAGES
+import li.nux.hippo.TaskResult.IMAGES_FROM_PREVIOUS_RUN
+import li.nux.hippo.TaskResult.NEW_ALBUM_TOTAL
+import li.nux.hippo.TaskResult.NEW_IMAGES
+import li.nux.hippo.TaskResult.NEW_IMAGE_TOTAL
 import org.apache.tika.Tika
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -39,75 +47,115 @@ private val prettyJson = Json { // this returns the JsonBuilder
     prettyPrintIndent = "    "
 }
 
+fun init() {
+    StorageService.createTable()
+}
+
 fun execute(
-    directory: String,
+    path: Path,
     params: HippoParams,
 ) {
-    StorageService.createTable()
     val storageService = StorageService()
-    val path: Path = Paths.get(directory)
-    val name = path.fileName.toString()
+    val taskResults: MutableMap<TaskResult, Int> = TaskResult.initMap()
     println("Searching " + path.fileName.normalize() + " for image files...")
     println("Btw. Precedence: ${params.precedence}, format: ${params.frontMatterFormat}")
 
-    if (name == "content") {
-        val tika = Tika()
-        val images: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
+    synchronizeImages(path, storageService, taskResults, params)
 
-        val paths = getSetOfPaths(path).stream().sorted().toList().filter { Files.isRegularFile(it) }
-        // Fetch all images from previous run
-        images.putAll(storageService.fetchAllImages().map { it.getReference() to it })
+    // DB is updated. Now handle markdown files
+    createOrReplacePages(
+        storageService.fetchAllImages()
+            .also {
+                taskResults[NEW_IMAGE_TOTAL] = it.size
+                taskResults[NEW_ALBUM_TOTAL] = it.groupBy { im -> im.album }.keys.size
+            }
+            .groupBy { it.getAlbumId() },
+        params.frontMatterFormat
+    )
+    printResult(taskResults)
+}
 
-        // Read all images from disk
-        val imagesFromDisk: List<ImageMetadata> = paths.filter {
-            tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
-        }.map { getImageMetadata(it) }
+private fun synchronizeImages(
+    path: Path,
+    storageService: StorageService,
+    taskResults: MutableMap<TaskResult, Int>,
+    params: HippoParams
+) {
+    val tika = Tika()
+    val images: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
 
-        // Read all markdown front matters from disk
-        val imagesFromFrontMatters: List<ImageMetadata> = paths
-            .filter { it.fileName.startsWith(IMG_NAME_PREFIX) }
-            .filter {
-                tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.MARKDOWN }
-            }.map { getImageDataFromFrontMatter(it).toImageMetadata() }
+    val paths = getSetOfPaths(path).stream().sorted().toList().filter { Files.isRegularFile(it) }
+    // Fetch all images from previous run
+    images.putAll(
+        storageService.fetchAllImages()
+            .also {
+                taskResults[IMAGES_FROM_PREVIOUS_RUN] = it.size
+                taskResults[ALBUMS_FROM_PREVIOUS_RUN] = it.groupBy { im -> im.album }.keys.size
+            }
+            .map { it.getReference() to it }
+    )
 
-        // Compare and store in database based on params
-        val imagesChangedOnDisk: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
-        val frontMatterChanged: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
-        val toBeInsertedInDb: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
-        val toBeDeletedFromDb: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
-        imagesFromDisk.forEach { fromDisk ->
-            if (images.keys.contains(fromDisk.getReference())) {
-                if (images[fromDisk.getReference()].hashCode() != fromDisk.hashCode()) {
-                    imagesChangedOnDisk.add(fromDisk)
-                }
-            } else {
-                toBeInsertedInDb.put(fromDisk.getReference(), fromDisk)
+    // Read all images from disk
+    val imagesFromDisk: List<ImageMetadata> = getAllImagesFromDisk(paths, tika)
+
+    // Read all markdown front matters from disk
+    val imagesFromFrontMatters: List<ImageMetadata> = getImagesFromFrontMatters(paths, tika)
+
+    // Compare and store in database based on params
+    val imagesChangedOnDisk: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+    val frontMatterChanged: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+    val toBeInsertedInDb: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
+    val toBeDeletedFromDb: MutableList<ImageMetadata> = listOf<ImageMetadata>().toMutableList()
+    imagesFromDisk.forEach { fromDisk ->
+        if (images.keys.contains(fromDisk.getReference())) {
+            if (images[fromDisk.getReference()].hashCode() != fromDisk.hashCode()) {
+                imagesChangedOnDisk.add(fromDisk)
+            }
+        } else {
+            toBeInsertedInDb.put(fromDisk.getReference(), fromDisk)
+        }
+    }
+
+    imagesFromFrontMatters.forEach { fromFrontMatter ->
+        if (images.keys.contains(fromFrontMatter.getReference())) {
+            if (images[fromFrontMatter.getReference()].hashCode() != fromFrontMatter.hashCode()) {
+                frontMatterChanged.add(fromFrontMatter)
             }
         }
+    }
+    images.forEach {
+        if (it.key !in imagesFromDisk.map { it.getReference() }) toBeDeletedFromDb.add(it.value)
+    }
+    taskResults[CHANGED_IMAGE_FILES] = imagesChangedOnDisk.size
+    taskResults[CHANGED_FRONT_MATTERS] = frontMatterChanged.size
+    taskResults[NEW_IMAGES] = toBeInsertedInDb.size
+    taskResults[DELETED_IMAGES] = toBeDeletedFromDb.size
+    val updateList = getUpdateList(params, imagesChangedOnDisk, frontMatterChanged)
 
-        imagesFromFrontMatters.forEach { fromFrontMatter ->
-            if (images.keys.contains(fromFrontMatter.getReference())) {
-                if (images[fromFrontMatter.getReference()].hashCode() != fromFrontMatter.hashCode()) {
-                    frontMatterChanged.add(fromFrontMatter)
-                }
-            }
-        }
-        images.forEach {
-            if (it.key !in imagesFromDisk.map { it.getReference() }) toBeDeletedFromDb.add(it.value)
-        }
+    toBeInsertedInDb.values.forEach { handleNewImage(storageService, it) }
+    updateList.forEach { handleUpdate(storageService, images[it.getReference()]?.id!!, it) }
+    toBeDeletedFromDb.forEach { handleDelete(storageService, it) }
+}
 
-        val updateList = getUpdateList(params, imagesChangedOnDisk, frontMatterChanged)
+private fun getImagesFromFrontMatters(
+    paths: List<Path>,
+    tika: Tika
+) = paths
+    .filter { it.fileName.startsWith(IMG_NAME_PREFIX) }
+    .filter {
+        tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.MARKDOWN }
+    }.map { getImageDataFromFrontMatter(it).toImageMetadata() }
 
-        toBeInsertedInDb.values.forEach { handleNewImage(storageService, it) }
-        updateList.forEach { handleUpdate(storageService, images[it.getReference()]?.id!!, it) }
-        toBeDeletedFromDb.forEach { handleDelete(storageService, it) }
+private fun getAllImagesFromDisk(
+    paths: List<Path>,
+    tika: Tika
+) = paths.filter {
+    tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
+}.map { getImageMetadata(it) }
 
-        // DB is updated. Now handle markdown files
-        createOrReplacePages(storageService.fetchAllImages().groupBy { it.getAlbumId() }, params.frontMatterFormat)
-    } else {
-        println(
-            "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."
-        )
+fun printResult(taskResults: MutableMap<TaskResult, Int>) {
+    taskResults.forEach {
+        println("${it.key.description}: ${it.value}")
     }
 }
 

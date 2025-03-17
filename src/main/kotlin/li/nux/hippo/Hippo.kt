@@ -1,5 +1,7 @@
 package li.nux.hippo
 
+import java.nio.file.Path
+import java.nio.file.Paths
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -27,14 +29,27 @@ class Hippo : CliktCommand() {
 
     override fun run() {
         echo(appHeader())
-        execute(
-            directory,
-            HippoParams(
-                changeStrategy.toChangeAcceptance(),
-                precedence.toPrecedence(),
-                format.toFrontMatterFormat(),
+        directoryIsCorrect(directory)?.let { path ->
+            init()
+            execute(
+                path,
+                HippoParams(
+                    changeStrategy.toChangeAcceptance(),
+                    precedence.toPrecedence(),
+                    format.toFrontMatterFormat(),
+                )
             )
-        )
+        } ?: {
+            println(
+                "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."
+            )
+        }
+    }
+
+    private fun directoryIsCorrect(directory: String): Path? {
+        val path: Path = Paths.get(directory)
+        val name = path.fileName.toString()
+        return if (name == "content") path else null
     }
 }
 
