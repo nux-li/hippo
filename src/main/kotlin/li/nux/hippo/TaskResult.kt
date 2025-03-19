@@ -7,8 +7,8 @@ enum class TaskResult(val description: String) {
     CHANGED_IMAGE_FILES("Changeed image files"),
     CHANGED_FRONT_MATTERS("Changeed front matters"),
     DELETED_IMAGES("Deleted images"),
-    NEW_IMAGE_TOTAL("New image count"),
-    NEW_ALBUM_TOTAL("New album count");
+    NEW_IMAGE_TOTAL("Post-run image count"),
+    NEW_ALBUM_TOTAL("Post-run album count");
 
     companion object {
         fun initMap(): MutableMap<TaskResult, Int> = entries.associateWith { 0 }.toMutableMap()

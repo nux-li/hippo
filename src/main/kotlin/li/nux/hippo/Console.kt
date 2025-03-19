@@ -71,6 +71,7 @@ data class HippoParams(
     val precedence: Precedence,
     val frontMatterFormat: FrontMatterFormat,
     val verbose: Boolean = false,
+    val contentDirectory: String,
 )
 
 class ParseException(message: String): RuntimeException(message)

@@ -1,4 +1,4 @@
-package li.nux.hippo
+package li.nux.hippo.model
 
 import java.sql.ResultSet
 import java.time.LocalDateTime

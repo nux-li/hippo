@@ -22,8 +22,8 @@ class Hippo : CliktCommand() {
         .default("front_matter")
         .help("If both the Hugo front matter and the image metadata have changed, which one takes precedence?")
     private val format: String by option("-f", "--format")
-        .choice("json", "toml", "yaml")
-        .default("toml")
+        .choice("json", "yaml") // , "toml"
+        .default("yaml")
         .help("The format to be used for front matter segment")
     private val verbose: String by option("--verbose")
         .optionalValue("true")
@@ -39,10 +39,11 @@ class Hippo : CliktCommand() {
             execute(
                 path,
                 HippoParams(
-                    changeStrategy.toChangeAcceptance(),
-                    precedence.toPrecedence(),
-                    format.toFrontMatterFormat(),
-                    verbose.toBoolean(),
+                    changeAcceptance = changeStrategy.toChangeAcceptance(),
+                    precedence = precedence.toPrecedence(),
+                    frontMatterFormat = format.toFrontMatterFormat(),
+                    verbose = verbose.toBoolean(),
+                    contentDirectory = directory,
                 )
             )
         } ?: {

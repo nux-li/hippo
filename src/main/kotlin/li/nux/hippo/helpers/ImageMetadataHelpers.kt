@@ -16,9 +16,9 @@ import com.drew.metadata.exif.ExifDirectoryBase.TAG_MAKE
 import com.drew.metadata.exif.ExifDirectoryBase.TAG_MODEL
 import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
-import li.nux.hippo.ExposureDetails
+import li.nux.hippo.model.ExposureDetails
 import li.nux.hippo.HippoParams
-import li.nux.hippo.ImageMetadata
+import li.nux.hippo.model.ImageMetadata
 import li.nux.hippo.printError
 import li.nux.hippo.printIf
 
@@ -51,7 +51,7 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                     credit = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CREDIT),
                     captureDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED),
                     captureTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED),
-                    keywords = iptcDirectory.keywords,
+                    keywords = Optional.ofNullable(iptcDirectory.keywords).orElse(emptyList()),
                     exposureDetails = ExposureDetails(
                         focalLength = focalLength,
                         aperture = fNumber,

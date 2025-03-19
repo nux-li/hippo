@@ -1,4 +1,4 @@
-package li.nux.hippo
+package li.nux.hippo.model
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter

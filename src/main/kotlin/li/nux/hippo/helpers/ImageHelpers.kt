@@ -2,7 +2,7 @@ package li.nux.hippo.helpers
 
 import java.nio.file.Path
 import li.nux.hippo.HippoParams
-import li.nux.hippo.ImageMetadata
+import li.nux.hippo.model.ImageMetadata
 import li.nux.hippo.MediaFormat
 import li.nux.hippo.StorageService
 import li.nux.hippo.printIf

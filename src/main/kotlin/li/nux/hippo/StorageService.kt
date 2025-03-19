@@ -6,7 +6,8 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.text.SimpleDateFormat
 import java.util.Date
-import li.nux.hippo.ImageMetadata.Companion.fromResultSet
+import li.nux.hippo.model.ImageMetadata
+import li.nux.hippo.model.ImageMetadata.Companion.fromResultSet
 import mu.KotlinLogging
 
 private const val DATABASE_URL = "jdbc:sqlite:hippo.db"
@@ -71,21 +72,21 @@ class StorageService {
         var ndx = 0
         try {
             connection.prepareStatement(UPDATE_POSTED_IMAGE).use { prepped ->
-                prepped.setInt(ndx++, img.hashCode())
-                prepped.setString(ndx++, img.title)
-                prepped.setString(ndx++, img.description)
-                prepped.setString(ndx++, img.credit)
-                prepped.setString(ndx++, img.captureDate)
-                prepped.setString(ndx++, img.captureTime)
-                prepped.setString(ndx++, java.lang.String.join(", ", img.keywords))
-                prepped.setString(ndx++, img.exposureDetails?.focalLength)
-                prepped.setString(ndx++, img.exposureDetails?.aperture)
-                prepped.setString(ndx++, img.exposureDetails?.exposureTime)
-                prepped.setString(ndx++, img.exposureDetails?.iso)
-                prepped.setString(ndx++, img.exposureDetails?.cameraMake)
-                prepped.setString(ndx++, img.exposureDetails?.cameraModel)
-                prepped.setString(ndx++, now)
-                prepped.setInt(ndx++, id)
+                prepped.setInt(1, img.hashCode())
+                prepped.setString(2, img.title)
+                prepped.setString(3, img.description)
+                prepped.setString(4, img.credit)
+                prepped.setString(5, img.captureDate)
+                prepped.setString(6, img.captureTime)
+                prepped.setString(7, java.lang.String.join(", ", img.keywords))
+                prepped.setString(8, img.exposureDetails?.focalLength)
+                prepped.setString(9, img.exposureDetails?.aperture)
+                prepped.setString(10, img.exposureDetails?.exposureTime)
+                prepped.setString(11, img.exposureDetails?.iso)
+                prepped.setString(12, img.exposureDetails?.cameraMake)
+                prepped.setString(13, img.exposureDetails?.cameraModel)
+                prepped.setString(14, now)
+                prepped.setInt(15, id)
                 prepped.executeUpdate()
             }
         } catch (e: SQLException) {
@@ -102,25 +103,25 @@ class StorageService {
         var ndx = 0
         try {
             connection.prepareStatement(INSERT_POSTED_IMAGE).use { prepped ->
-                prepped.setString(ndx++, img.getReference())
-                prepped.setString(ndx++, img.path)
-                prepped.setString(ndx++, img.album)
-                prepped.setString(ndx++, img.filename)
-                prepped.setInt(ndx++, img.hashCode())
-                prepped.setString(ndx++, img.title)
-                prepped.setString(ndx++, img.description)
-                prepped.setString(ndx++, img.credit)
-                prepped.setString(ndx++, img.captureDate)
-                prepped.setString(ndx++, img.captureTime)
-                prepped.setString(ndx++, java.lang.String.join(", ", img.keywords))
-                prepped.setString(ndx++, img.exposureDetails?.focalLength)
-                prepped.setString(ndx++, img.exposureDetails?.aperture)
-                prepped.setString(ndx++, img.exposureDetails?.exposureTime)
-                prepped.setString(ndx++, img.exposureDetails?.iso)
-                prepped.setString(ndx++, img.exposureDetails?.cameraMake)
-                prepped.setString(ndx++, img.exposureDetails?.cameraModel)
-                prepped.setString(ndx++, now)
-                prepped.setString(ndx++, now)
+                prepped.setString(1, img.getReference())
+                prepped.setString(2, img.path)
+                prepped.setString(3, img.album)
+                prepped.setString(4, img.filename)
+                prepped.setInt(5, img.hashCode())
+                prepped.setString(6, img.title)
+                prepped.setString(7, img.description)
+                prepped.setString(8, img.credit)
+                prepped.setString(9, img.captureDate)
+                prepped.setString(10, img.captureTime)
+                prepped.setString(11, java.lang.String.join(", ", img.keywords))
+                prepped.setString(12, img.exposureDetails?.focalLength)
+                prepped.setString(13, img.exposureDetails?.aperture)
+                prepped.setString(14, img.exposureDetails?.exposureTime)
+                prepped.setString(15, img.exposureDetails?.iso)
+                prepped.setString(16, img.exposureDetails?.cameraMake)
+                prepped.setString(17, img.exposureDetails?.cameraModel)
+                prepped.setString(18, now)
+                prepped.setString(19, now)
                 prepped.executeUpdate()
                 return prepped.generatedKeys.getInt(1)
             }

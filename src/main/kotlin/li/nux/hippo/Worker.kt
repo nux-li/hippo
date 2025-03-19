@@ -18,6 +18,7 @@ import li.nux.hippo.helpers.handleDelete
 import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
 import li.nux.hippo.helpers.updateAlbumMarkdownDocs
+import li.nux.hippo.model.ImageMetadata
 import org.apache.tika.Tika
 
 fun init() {
