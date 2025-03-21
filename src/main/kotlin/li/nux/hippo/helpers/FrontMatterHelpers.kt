@@ -46,20 +46,7 @@ fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params:
         .groupBy { String(Base64.getDecoder().decode(it.controlCode)).split(",").first() }
         .toMutableMap()
     if (groupedByPath[params.contentDirectory] == null) {
-        groupedByPath[params.contentDirectory] = listOf(
-            Album(
-                albumId = "ROOT",
-                controlCode = listOf(
-                    params.contentDirectory,
-                    "/",
-                ).joinToString(",").let { Base64.getEncoder().encodeToString(it.encodeToByteArray()) },
-                title = "/",
-                description = "Insert description here",
-                coverImage = "",
-                subAlbums = emptyList(),
-                images = emptyList()
-            )
-        )
+        groupedByPath[params.contentDirectory] = listOf(Album.rootFolder(params.contentDirectory))
     }
     groupedByPath.forEach { (albumPath, albums) ->
         val subAlbums = groupedByPath.keys
@@ -80,7 +67,6 @@ fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params:
             }
         }
     }
-    println("groupedByPath: ${groupedByPath.size} albums")
     groupedByPath.forEach { (albumPath, albums) ->
         val albumFile = Paths.get(albumPath + File.separator + "index.md")
         val frontMatter = when (params.frontMatterFormat) {

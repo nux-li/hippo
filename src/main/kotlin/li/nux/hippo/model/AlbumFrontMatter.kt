@@ -30,6 +30,21 @@ data class Album(
             )
         }
 
+        fun rootFolder(contentDirectory: String): Album {
+            return Album(
+                albumId = "ROOT",
+                controlCode = listOf(
+                    contentDirectory,
+                    "/",
+                ).joinToString(",").let { Base64.getEncoder().encodeToString(it.encodeToByteArray()) },
+                title = "/",
+                description = "Insert description here",
+                coverImage = "",
+                subAlbums = emptyList(),
+                images = emptyList()
+            )
+        }
+
         private fun capitalize(name: String) =
             name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     }
