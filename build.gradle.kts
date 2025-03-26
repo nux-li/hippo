@@ -22,6 +22,8 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
     implementation("com.drewnoakes:metadata-extractor:2.19.0")
+    implementation("net.coobird:thumbnailator:0.4.20")
+    implementation("org.imgscalr:imgscalr-lib:4.2")
     implementation("org.apache.tika:tika-core:3.1.0")
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
     implementation("org.slf4j:slf4j-api:2.0.17")

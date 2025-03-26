@@ -12,9 +12,16 @@ fun getAllImagesFromDisk(
     paths: List<Path>,
     tika: Tika,
     params: HippoParams,
-) = paths.filter {
-    tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
-}.map { getImageMetadata(it, params) }
+): List<ImageMetadata> {
+    return paths
+        .filter { isJpeg(tika, it) }
+        .filterNot { it.fileName.startsWith(ImageMetadata.IMG_NAME_PREFIX) }
+        .map { getImageMetadata(it, params) }
+}
+
+private fun isJpeg(tika: Tika, it: Path): Boolean {
+    return tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.JPEG }
+}
 
 fun handleUpdate(
     storageService: StorageService,

@@ -70,6 +70,7 @@ data class HippoParams(
     val changeAcceptance: ChangeAcceptance,
     val precedence: Precedence,
     val frontMatterFormat: FrontMatterFormat,
+    val watermark: String?,
     val verbose: Boolean = false,
     val contentDirectory: String,
 )

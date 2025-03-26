@@ -25,6 +25,8 @@ class Hippo : CliktCommand() {
         .choice("json", "yaml") // , "toml"
         .default("yaml")
         .help("The format to be used for front matter segment")
+    private val watermark: String? by option("-w", "--watermark")
+        .help("The format to be used for front matter segment")
     private val verbose: String by option("--verbose")
         .optionalValue("true")
         .default("false")
@@ -42,6 +44,7 @@ class Hippo : CliktCommand() {
                     changeAcceptance = changeStrategy.toChangeAcceptance(),
                     precedence = precedence.toPrecedence(),
                     frontMatterFormat = format.toFrontMatterFormat(),
+                    watermark = watermark,
                     verbose = verbose.toBoolean(),
                     contentDirectory = directory,
                 )

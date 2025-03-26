@@ -1,7 +1,10 @@
 package li.nux.hippo
 
+import java.awt.image.BufferedImage
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import javax.imageio.ImageIO
 import li.nux.hippo.TaskResult.ALBUMS_FROM_PREVIOUS_RUN
 import li.nux.hippo.TaskResult.CHANGED_FRONT_MATTERS
 import li.nux.hippo.TaskResult.CHANGED_IMAGE_FILES
@@ -19,7 +22,10 @@ import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
 import li.nux.hippo.helpers.updateAlbumMarkdownDocs
 import li.nux.hippo.model.ImageMetadata
+import net.coobird.thumbnailator.filters.Watermark
+import net.coobird.thumbnailator.geometry.Positions
 import org.apache.tika.Tika
+import org.imgscalr.Scalr
 
 fun init() {
     StorageService.createTable()
@@ -48,7 +54,31 @@ fun execute(
         .groupBy { it.getAlbumId() }
         .also { createOrReplacePages(it, params) }
     updateAlbumMarkdownDocs(allImages, params)
+    createImageFiles(allImages, params)
     printResult(taskResults)
+}
+
+fun createImageFiles(imageByAlbum: Map<String, List<ImageMetadata>>, params: HippoParams) {
+
+    imageByAlbum.forEach { (albumId, imageMetadataList) ->
+        imageMetadataList.forEach { imageMetadata ->
+            params.watermark?.let {
+                val albumPath = imageMetadata.path + File.separator
+                val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
+                val wmDim = originalImage.width.let { w -> if (w < 1000) 200 else w/5 }
+                val watermarkImage: BufferedImage = ImageIO.read(File(it))
+                val resizedWatermark = Scalr.resize(
+                    watermarkImage,
+                    Scalr.Method.ULTRA_QUALITY,
+                    Scalr.Mode.FIT_TO_WIDTH,
+                    wmDim
+                )
+                val watermarkFilter = Watermark(Positions.BOTTOM_LEFT, resizedWatermark, 0.3f)
+                val watermarked = watermarkFilter.apply(originalImage)
+                ImageIO.write(watermarked, "jpg", File(albumPath + imageMetadata.getReference()+"_w_original_size.jpg"))
+            }
+        }
+    }
 }
 
 private fun synchronizeImages(

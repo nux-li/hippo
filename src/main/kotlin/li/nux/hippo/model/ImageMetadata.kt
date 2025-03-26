@@ -71,7 +71,7 @@ data class ImageMetadata(
 
     companion object {
         const val RADIX = 35
-        const val IMG_NAME_PREFIX = "PIC_"
+        const val IMG_NAME_PREFIX = "fo2_"
 
         fun fromResultSet(resultSet: ResultSet) = ImageMetadata(
             id = resultSet.getInt("id"),
