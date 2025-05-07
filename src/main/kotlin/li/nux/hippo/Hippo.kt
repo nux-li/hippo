@@ -1,7 +1,11 @@
 package li.nux.hippo
 
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.stream.Collectors
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -11,6 +15,7 @@ import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.types.choice
+import li.nux.hippo.model.HugoSubfolder
 
 class Hippo : CliktCommand() {
     private val changeStrategy: String by option("-c", "--changes")
@@ -36,18 +41,20 @@ class Hippo : CliktCommand() {
 
     override fun run() {
         echo(appHeader())
-        directoryIsCorrect(directory)?.let { path ->
+        val params = HippoParams(
+            changeAcceptance = changeStrategy.toChangeAcceptance(),
+            precedence = precedence.toPrecedence(),
+            frontMatterFormat = format.toFrontMatterFormat(),
+            watermark = watermark,
+            verbose = verbose.toBoolean(),
+            contentDirectory = directory,
+        )
+        isHugoSiteDirectory(directory)?.let { paths ->
             init()
+            printIf(params, "HugoPaths: $paths")
             execute(
-                path,
-                HippoParams(
-                    changeAcceptance = changeStrategy.toChangeAcceptance(),
-                    precedence = precedence.toPrecedence(),
-                    frontMatterFormat = format.toFrontMatterFormat(),
-                    watermark = watermark,
-                    verbose = verbose.toBoolean(),
-                    contentDirectory = directory,
-                )
+                paths,
+                params,
             )
         } ?: {
             println(
@@ -56,10 +63,24 @@ class Hippo : CliktCommand() {
         }
     }
 
-    private fun directoryIsCorrect(directory: String): Path? {
+    private fun isHugoSiteDirectory(directory: String): HugoPaths? {
         val path: Path = Paths.get(directory)
-        val name = path.fileName.toString()
-        return if (name == "content") path else null
+        val subfolders = Files.walk(path, 1)
+            .filter(Files::isDirectory)
+            .collect(Collectors.toList())
+            .map { it.fileName.toString() }
+        return if (HugoSubfolder.entries.map { it.folderName }.map(subfolders::contains).none { false }) {
+            HugoPaths(
+                root = path.toRealPath(LinkOption.NOFOLLOW_LINKS),
+                content = Paths.get(path.toString() + File.separator + HugoSubfolder.CONTENT.folderName)
+                    .toRealPath(LinkOption.NOFOLLOW_LINKS),
+                assets = Paths.get(path.toString() + File.separator + HugoSubfolder.ASSETS.folderName)
+                    .toRealPath(LinkOption.NOFOLLOW_LINKS),
+
+            )
+        } else {
+            null
+        }
     }
 }
 

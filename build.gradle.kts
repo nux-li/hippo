@@ -16,7 +16,7 @@ repositories {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
-    implementation("com.charleskorn.kaml:kaml:0.72.0")
+    implementation("com.charleskorn.kaml:kaml:0.77.1")
     implementation("com.akuleshov7:ktoml-core:0.5.1")
     implementation("com.akuleshov7:ktoml-file:0.5.1")
     implementation("com.github.ajalt.clikt:clikt:5.0.3")

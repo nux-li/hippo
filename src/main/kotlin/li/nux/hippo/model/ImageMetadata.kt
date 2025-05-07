@@ -83,7 +83,7 @@ data class ImageMetadata(
             credit = resultSet.getString("credit"),
             captureDate = resultSet.getString("capture_date"),
             captureTime = resultSet.getString("capture_time"),
-            keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";"),
+            keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";").distinct(),
             exposureDetails = ExposureDetails(
                 focalLength = resultSet.getString("focal_length"),
                 aperture = resultSet.getString("f_number"),

@@ -4,7 +4,10 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
+import javax.imageio.IIOException
 import javax.imageio.ImageIO
+import kotlin.math.min
 import li.nux.hippo.TaskResult.ALBUMS_FROM_PREVIOUS_RUN
 import li.nux.hippo.TaskResult.CHANGED_FRONT_MATTERS
 import li.nux.hippo.TaskResult.CHANGED_IMAGE_FILES
@@ -20,30 +23,42 @@ import li.nux.hippo.helpers.getSetOfPaths
 import li.nux.hippo.helpers.handleDelete
 import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
+import li.nux.hippo.helpers.sanitizeDirectoryNames
 import li.nux.hippo.helpers.updateAlbumMarkdownDocs
+import li.nux.hippo.model.ConvertedImage
+import li.nux.hippo.model.ImageChanges
 import li.nux.hippo.model.ImageMetadata
 import net.coobird.thumbnailator.filters.Watermark
 import net.coobird.thumbnailator.geometry.Positions
 import org.apache.tika.Tika
 import org.imgscalr.Scalr
 
+const val MAX_DIRECTORY_DEPTH = 10
+const val WATERMARK_LOWER_THRESHOLD = 1000
+const val WATERMARK_MIN_WIDTH = 200
+const val FIFTH = 5
+const val WATERMARK_OPACITY = 0.3f
+
 fun init() {
     StorageService.createTable()
 }
 
 fun execute(
-    path: Path,
+    hugoPaths: HugoPaths,
     params: HippoParams,
 ) {
+    val path = hugoPaths.content
     val storageService = StorageService()
     val taskResults: MutableMap<TaskResult, Int> = TaskResult.initMap()
+
     printIf(params, "Searching " + path.fileName.normalize() + " for image files...")
+    sanitizeDirectoryNames(hugoPaths, params)
     printIf(
         params,
         "Btw. Verbose: ${params.verbose}, Precedence: ${params.precedence}, format: ${params.frontMatterFormat}"
     )
 
-    synchronizeImages(path, storageService, taskResults, params)
+    val imageChanges = synchronizeImages(path, storageService, taskResults, params)
 
     // DB is updated. Now handle markdown files
     val allImages = storageService.fetchAllImages()
@@ -52,32 +67,145 @@ fun execute(
             taskResults[NEW_ALBUM_TOTAL] = it.groupBy { im -> im.album }.keys.size
         }
         .groupBy { it.getAlbumId() }
-        .also { createOrReplacePages(it, params) }
-    updateAlbumMarkdownDocs(allImages, params)
-    createImageFiles(allImages, params)
+        .also { createOrReplacePages(it, params, hugoPaths) }
+    updateAlbumMarkdownDocs(allImages, params, hugoPaths)
+    val newAndChangedImages = imageChanges.changedOnDisk.plus(imageChanges.inserted.values)
+    createImageFiles(newAndChangedImages.groupBy { it.getAlbumId() }, params)
     printResult(taskResults)
 }
 
-fun createImageFiles(imageByAlbum: Map<String, List<ImageMetadata>>, params: HippoParams) {
-
+fun createImageFiles(
+    imageByAlbum: Map<String, List<ImageMetadata>>,
+    params: HippoParams
+) {
+    if (imageByAlbum.keys.isNotEmpty()) {
+        println(
+            "Creating resized image sets for ${imageByAlbum.keys.size} albums:"
+        )
+    }
     imageByAlbum.forEach { (albumId, imageMetadataList) ->
-        imageMetadataList.forEach { imageMetadata ->
-            params.watermark?.let {
-                val albumPath = imageMetadata.path + File.separator
-                val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
-                val wmDim = originalImage.width.let { w -> if (w < 1000) 200 else w/5 }
-                val watermarkImage: BufferedImage = ImageIO.read(File(it))
-                val resizedWatermark = Scalr.resize(
-                    watermarkImage,
-                    Scalr.Method.ULTRA_QUALITY,
-                    Scalr.Mode.FIT_TO_WIDTH,
-                    wmDim
-                )
-                val watermarkFilter = Watermark(Positions.BOTTOM_LEFT, resizedWatermark, 0.3f)
-                val watermarked = watermarkFilter.apply(originalImage)
-                ImageIO.write(watermarked, "jpg", File(albumPath + imageMetadata.getReference()+"_w_original_size.jpg"))
+        val totalFiles = imageMetadataList.size
+        imageMetadataList.forEachIndexed { index, imageMetadata ->
+            val destinationFolder = imageMetadata.path.replace("content/albums", "assets/images")
+            val destination = Path.of(destinationFolder)
+            Files.createDirectories(destination)
+            print("AlbumId $albumId - Image sets created: $index / $totalFiles...")
+            ConvertedImage.entries.forEach { convertedImageSize ->
+                when (val watermarkFilename = if (convertedImageSize.watermarkEnabled) params.watermark else null) {
+                    null -> createResizedImageSetsWithoutWatermarks(
+                        imageMetadata,
+                        convertedImageSize,
+                        destination,
+                        destinationFolder
+                    )
+                    else -> createResizedImageSetsWithWatermarks(
+                        imageMetadata,
+                        convertedImageSize,
+                        watermarkFilename,
+                        destinationFolder
+                    )
+                }
+                print("\r")
             }
         }
+        println("AlbumId $albumId - Image sets created: $totalFiles / $totalFiles... Done")
+    }
+}
+
+private fun createResizedImageSetsWithWatermarks(
+    imageMetadata: ImageMetadata,
+    convertedImageSize: ConvertedImage,
+    watermarkFilename: String,
+    destinationFolder: String
+) {
+    val albumPath = imageMetadata.path + File.separator
+    val originalImage = getImageResizedIfNeeded(convertedImageSize, albumPath, imageMetadata)
+    val wmDim = originalImage.width.let { w -> if (w < WATERMARK_LOWER_THRESHOLD) WATERMARK_MIN_WIDTH else w / FIFTH }
+    val watermark = getAdjustedWatermark(watermarkFilename, wmDim)
+
+    val watermarkFilter = Watermark(Positions.BOTTOM_LEFT, watermark, WATERMARK_OPACITY)
+    val watermarked = watermarkFilter.apply(originalImage)
+    ImageIO.write(
+        watermarked,
+        "jpg",
+        File(
+            destinationFolder +
+                File.separator +
+                imageMetadata.getReference() + convertedImageSize.filenamePostfix
+        )
+    )
+}
+
+private fun createResizedImageSetsWithoutWatermarks(
+    imageMetadata: ImageMetadata,
+    convertedImageSize: ConvertedImage,
+    destination: Path,
+    destinationFolder: String
+) {
+    val albumPath = imageMetadata.path + File.separator
+    when (val reducedHeight = convertedImageSize.reduceTo) {
+        null -> {
+            val imageFrom = Path.of(albumPath + imageMetadata.filename)
+            Files.copy(
+                imageFrom,
+                destination.resolve(
+                    imageMetadata.getReference() + convertedImageSize.filenamePostfix
+                )
+            )
+        }
+
+        else -> {
+            try {
+                val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
+                val resized = Scalr.resize(
+                    originalImage,
+                    Scalr.Method.ULTRA_QUALITY,
+                    Scalr.Mode.FIT_TO_HEIGHT,
+                    min(originalImage.height, reducedHeight)
+                )
+                ImageIO.write(
+                    resized,
+                    "jpg",
+                    File(
+                        destinationFolder +
+                            File.separator +
+                            imageMetadata.getReference() + convertedImageSize.filenamePostfix
+                    )
+                )
+            } catch (e: IIOException) {
+                println("Error writing to " + albumPath + imageMetadata.filename + ": " + e.message)
+                throw e
+            }
+        }
+    }
+}
+
+private fun getAdjustedWatermark(watermarkFilename: String, wmDim: Int): BufferedImage {
+    val watermarkImage
+        : BufferedImage = ImageIO.read(File(watermarkFilename))
+    val resizedWatermark = Scalr.resize(
+        watermarkImage,
+        Scalr.Method.ULTRA_QUALITY,
+        Scalr.Mode.FIT_TO_WIDTH,
+        wmDim
+    )
+    return resizedWatermark
+}
+
+private fun getImageResizedIfNeeded(
+    convertedImageSize: ConvertedImage,
+    albumPath: String,
+    imageMetadata: ImageMetadata
+): BufferedImage = when (val reducedHeight = convertedImageSize.reduceTo) {
+    null -> ImageIO.read(File(albumPath + imageMetadata.filename))
+    else -> {
+        val oldImage = ImageIO.read(File(albumPath + imageMetadata.filename))
+        Scalr.resize(
+            oldImage,
+            Scalr.Method.ULTRA_QUALITY,
+            Scalr.Mode.FIT_TO_HEIGHT,
+            min(oldImage.height, reducedHeight)
+        )
     }
 }
 
@@ -86,7 +214,7 @@ private fun synchronizeImages(
     storageService: StorageService,
     taskResults: MutableMap<TaskResult, Int>,
     params: HippoParams
-) {
+): ImageChanges {
     val tika = Tika()
     val images: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
 
@@ -141,6 +269,13 @@ private fun synchronizeImages(
     toBeInsertedInDb.values.forEach { handleNewImage(storageService, it, params) }
     updateList.forEach { handleUpdate(storageService, images[it.getReference()]?.id!!, it) }
     toBeDeletedFromDb.forEach { handleDelete(storageService, it) }
+
+    return ImageChanges(
+        imagesChangedOnDisk,
+        frontMatterChanged,
+        toBeInsertedInDb,
+        toBeDeletedFromDb
+    )
 }
 
 private fun getUpdateList(
@@ -159,7 +294,12 @@ private fun getUpdateList(
 }
 
 fun printResult(taskResults: MutableMap<TaskResult, Int>) {
-    taskResults.forEach {
-        println("${it.key.description}: ${it.value}")
+    taskResults.keys.maxOfOrNull { it.description.length }?.let { len ->
+        println("=".repeat(len*2))
+        taskResults.forEach {
+            val str = String.format(Locale.getDefault(), "%${len}s : %d", it.key.description, it.value)
+            println(str)
+        }
+        println("=".repeat(len*2))
     }
 }

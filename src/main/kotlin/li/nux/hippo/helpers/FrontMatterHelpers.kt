@@ -8,13 +8,13 @@ import java.util.Base64
 import kotlin.io.path.exists
 import com.akuleshov7.ktoml.Toml
 import com.charleskorn.kaml.Yaml
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import li.nux.hippo.FrontMatterFormat
 import li.nux.hippo.FrontMatterFormat.JSON
 import li.nux.hippo.FrontMatterFormat.TOML
 import li.nux.hippo.FrontMatterFormat.YAML
 import li.nux.hippo.HippoParams
+import li.nux.hippo.HugoPaths
 import li.nux.hippo.MediaFormat
 import li.nux.hippo.model.Album
 import li.nux.hippo.model.ImageFrontMatter
@@ -24,19 +24,12 @@ import li.nux.hippo.model.SubAlbum
 import li.nux.hippo.printIf
 import org.apache.tika.Tika
 
-@OptIn(ExperimentalSerializationApi::class)
-private val prettyJson = Json { // this returns the JsonBuilder
-    prettyPrint = true
-    encodeDefaults = false
-    prettyPrintIndent = "    "
-}
-
 private const val TOML_WRAPPING = "+++\n"
 private const val YAML_WRAPPING = "---\n"
 private fun tomlWrap(string: String): String = TOML_WRAPPING + string + "\n$TOML_WRAPPING"
 private fun yamlWrap(string: String): String = YAML_WRAPPING + string + "\n$YAML_WRAPPING"
 
-fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params: HippoParams) {
+fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params: HippoParams, hugoPaths: HugoPaths) {
     printIf(params, "(Re-)creating album markdown files for ${allImages.keys.size} albums")
     val imagesByPath = allImages.values.flatten().groupBy { it.path }
     val albums = imagesByPath.map { (path, images) ->
@@ -46,14 +39,23 @@ fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params:
         .groupBy { String(Base64.getDecoder().decode(it.controlCode)).split(",").first() }
         .toMutableMap()
     if (groupedByPath[params.contentDirectory] == null) {
-        groupedByPath[params.contentDirectory] = listOf(Album.rootFolder(params.contentDirectory))
+        printIf(params, "Creating root folder for ${params.getContentDirectoryFullPath()}")
+        groupedByPath[params.contentDirectory] = listOf(
+            Album.rootFolder(hugoPaths.albums.toString())
+//            Album.rootFolder(params.getContentDirectoryFullPath() + "/content/albums")
+        )
     }
     groupedByPath.forEach { (albumPath, albums) ->
+        val realAlbumPath = when (albumPath) {
+            "../.." -> hugoPaths.albums.toString()
+            else -> albumPath
+        }
         val subAlbums = groupedByPath.keys
-            .filter { isDirectSubfolder(it, albumPath) }
+            .filter { isDirectSubfolder(it, realAlbumPath) }
             .flatMap { groupedByPath[it]!! }
-            .map { SubAlbum.from(it) }
-        val path = Path.of(albumPath + File.separator + mdPrefix(params.contentDirectory, albumPath) + "index.md")
+            .map { SubAlbum.from(it, realAlbumPath) }
+        val path = Path.of(albumPath + File.separator + "_index.md")
+        printIf(params, "Front matter index path $path")
         val existingAlbumFromFrontMatter = when (path.exists()) {
             true -> getAlbumDataFromFrontMatter(path)
             else -> null
@@ -61,14 +63,25 @@ fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params:
         albums.forEach {
             it.subAlbums = subAlbums
             existingAlbumFromFrontMatter?.also { afm ->
-                it.title = afm.title
+                it.title = afm.title.replace('_', ' ')
                 it.description = afm.description
                 it.coverImage = afm.coverImage
             }
         }
     }
+    writeAlbumFrontMatterFilesToDisk(groupedByPath, params)
+}
+
+private fun writeAlbumFrontMatterFilesToDisk(
+    groupedByPath: MutableMap<String, List<Album>>,
+    params: HippoParams
+) {
     groupedByPath.forEach { (albumPath, albums) ->
-        val albumFile = Paths.get(albumPath + File.separator + "index.md")
+        val realAlbumPath = when (albumPath) {
+            "../.." -> params.getContentDirectoryFullPath() + "/content/albums"
+            else -> albumPath
+        }
+        val albumFile = Paths.get(realAlbumPath + File.separator + "_index.md")
         val frontMatter = when (params.frontMatterFormat) {
             JSON -> prettyJson.encodeToString(albums.first())
             TOML -> tomlWrap(Toml.encodeToString(Album.serializer(), albums.first()))
@@ -78,17 +91,12 @@ fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params:
     }
 }
 
-fun mdPrefix(rootDir: String, albumPath: String): String {
-    return if (rootDir == albumPath) "_" else ""
-}
-
-private fun isDirectSubfolder(subfolder: String, albumPath: String): Boolean {
-    return subfolder != albumPath &&
-        subfolder.startsWith(albumPath) &&
-        !subfolder.removePrefix(albumPath + File.separator).contains(File.separator)
-}
-
-fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, params: HippoParams) {
+fun createOrReplacePages(
+    albumsWithImages: Map<String, List<ImageMetadata>>,
+    params: HippoParams,
+    hugoPaths: HugoPaths
+) {
+    val imfMap = HashMap<String, ImageFrontMatter>().toMutableMap()
     albumsWithImages.forEach {
         printIf(params,
             "Album ${it.key} has ${it.value.size} images. Files to create/update:  ${it.key}.md " +
@@ -97,6 +105,7 @@ fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, par
         it.value.forEach { im ->
             val imFile = Paths.get(im.path + File.separator + im.getReference() + ".md")
             val imf = ImageFrontMatter.from(im)
+            imfMap[imf.imageId] = imf
             val frontMatter = when (params.frontMatterFormat) {
                 JSON -> prettyJson.encodeToString(imf)
                 TOML -> tomlWrap(Toml.encodeToString(ImageFrontMatter.serializer(), imf))
@@ -115,8 +124,9 @@ fun createOrReplacePages(albumsWithImages: Map<String, List<ImageMetadata>>, par
             Files.write(imFile, frontMatter.toByteArray())
         }
     }
+    createDatafileWithAllImages(hugoPaths, imfMap)
+    createDatafileWithAllKeywords(hugoPaths, imfMap)
 }
-
 
 fun getImagesFromFrontMatters(
     paths: List<Path>,
@@ -142,7 +152,7 @@ fun getImageDataFromFrontMatter(file: Path): ImageFrontMatter {
     }
 }
 
-fun getAlbumDataFromFrontMatter(file: Path): Album? {
+fun getAlbumDataFromFrontMatter(file: Path): Album {
     val allLines = Files.readAllLines(file)
     return when (val fmf = FrontMatterFormat.fromFirstLine(allLines.first())) {
         JSON -> Json.decodeFromString<Album>(getFrontMatterPart(fmf, allLines))

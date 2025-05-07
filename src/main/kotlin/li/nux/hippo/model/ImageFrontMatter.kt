@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ImageFrontMatter(
-    val imageId: String,
+    @kotlinx.serialization.Transient
+    val imageId: String = "",
     val controlCode: String,
     val title: String,
     val description: String,
@@ -15,6 +16,7 @@ data class ImageFrontMatter(
     val year: String? = null,
     val captureDate: String? = null,
     val captureDateTime: String? = null,
+    var imagePaths: GalleryImage? = null,
     val keywords: List<String>,
     val exifDetails: ExposureDetails? = null,
 ) {
@@ -52,6 +54,7 @@ data class ImageFrontMatter(
                 year = captured?.year?.toString(),
                 captureDate = captured?.toLocalDate()?.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 captureDateTime = captured?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                imagePaths = GalleryImage.from(imageMetadata.path, imageMetadata.getReference()),
                 keywords = imageMetadata.keywords,
                 exifDetails = imageMetadata.exposureDetails?.ifAnyData()
             )
@@ -72,3 +75,14 @@ data class ImageFrontMatter(
         }
     }
 }
+
+@Serializable
+data class AllImages(
+    val images: Map<String, ImageFrontMatter>
+)
+
+@Serializable
+data class KeywordItem(
+    val keyword: String,
+    val count: Int,
+)

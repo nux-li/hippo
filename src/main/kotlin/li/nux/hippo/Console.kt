@@ -1,5 +1,9 @@
 package li.nux.hippo
 
+import java.io.File
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.Base64
 
 private const val LOGO = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
@@ -73,6 +77,22 @@ data class HippoParams(
     val watermark: String?,
     val verbose: Boolean = false,
     val contentDirectory: String,
-)
+) {
+    fun getContentDirectoryFullPath(): String {
+        return Path.of(contentDirectory).toRealPath(LinkOption.NOFOLLOW_LINKS).normalize().toAbsolutePath().toString()
+    }
+}
+
+data class HugoPaths(
+    val root: Path,
+    val content: Path,
+    val assets: Path,
+) {
+    val albums: Path = (content.toAbsolutePath().toString() + File.separator + "albums").let { Path.of(it) }
+    override fun toString(): String {
+        return "HugoPaths(\nroot=$root, \ncontent=$content, \nassets=$assets, \nalbums=$albums\n)"
+    }
+
+}
 
 class ParseException(message: String): RuntimeException(message)
