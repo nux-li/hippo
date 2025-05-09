@@ -3,6 +3,7 @@ package li.nux.hippo.helpers
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
+import kotlin.math.roundToInt
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import li.nux.hippo.HugoPaths
@@ -15,6 +16,8 @@ val prettyJson = Json { // this returns the JsonBuilder
     encodeDefaults = false
     prettyPrintIndent = "    "
 }
+
+private const val NUMBER_OF_BUCKETS = 9
 
 fun createDatafileWithAllImages(
     hugoPaths: HugoPaths,
@@ -40,6 +43,11 @@ fun createDatafileWithAllKeywords(
         .flatten()
         .groupBy { it }
         .map { KeywordItem(it.key, it.value.size) }
-    val content = prettyJson.encodeToString(keywordItems.sortedByDescending { it.count })
+    val bucketSize = keywordItems.map { item: KeywordItem -> item.count }
+        .maxOrNull()?.let { ((it.toDouble() + 1.0) / NUMBER_OF_BUCKETS).roundToInt() } ?: 0
+
+    val keywords = keywordItems.map { it.copy(weight = ((it.count + 1).toDouble() / bucketSize).roundToInt()) }
+        .groupBy { it.keyword }.mapKeys { it.key.lowercase() }.mapValues { it.value.first() }
+    val content = prettyJson.encodeToString(keywords)
     Files.write(datafile, content.toByteArray())
 }

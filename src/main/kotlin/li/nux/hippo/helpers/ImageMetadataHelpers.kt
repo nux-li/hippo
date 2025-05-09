@@ -42,6 +42,7 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
         imageMetadata = metadata.getDirectoriesOfType(IptcDirectory::class.java).stream()
             .findFirst()
             .map { iptcDirectory: IptcDirectory ->
+                val dateAsString = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED)
                 ImageMetadata(
                     path = path,
                     album = album,
@@ -49,6 +50,7 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                     title = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME),
                     description = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION),
                     credit = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CREDIT),
+                    year = listOf(dateAsString),
                     captureDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED),
                     captureTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED),
                     keywords = Optional.ofNullable(iptcDirectory.keywords).orElse(emptyList()),

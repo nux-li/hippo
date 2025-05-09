@@ -1,7 +1,9 @@
 package li.nux.hippo.model
 
 import java.sql.ResultSet
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Objects
 import kotlinx.serialization.Serializable
 
@@ -13,6 +15,7 @@ data class ImageMetadata(
     val title: String? = null,
     val description: String? = null,
     val credit: String? = null,
+    val year: List<String> = emptyList(),
     val captureDate: String? = null,
     val captureTime: String? = null,
     val keywords: List<String> = emptyList(),
@@ -72,6 +75,7 @@ data class ImageMetadata(
     companion object {
         const val RADIX = 35
         const val IMG_NAME_PREFIX = "fo2_"
+        val df = DateTimeFormatter.ofPattern("yyyyMMdd")
 
         fun fromResultSet(resultSet: ResultSet) = ImageMetadata(
             id = resultSet.getInt("id"),
@@ -81,6 +85,7 @@ data class ImageMetadata(
             title = resultSet.getString("title"),
             description = resultSet.getString("description"),
             credit = resultSet.getString("credit"),
+            year = getYearFrom(resultSet.getString("capture_date"))?.let { listOf(it) } ?: emptyList(),
             captureDate = resultSet.getString("capture_date"),
             captureTime = resultSet.getString("capture_time"),
             keywords = resultSet.getString("keywords").split(", ", "; ", ",", ";").distinct(),
@@ -95,6 +100,12 @@ data class ImageMetadata(
             created = resultSet.getTimestamp("created").toLocalDateTime(),
             updated = resultSet.getTimestamp("updated").toLocalDateTime(),
         )
+
+        private fun getYearFrom(capturedDate: String?): String? {
+            return capturedDate?.let {
+                LocalDate.parse(it, df ).year.toString()
+            }
+        }
     }
 }
 

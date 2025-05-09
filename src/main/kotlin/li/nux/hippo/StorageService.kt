@@ -78,7 +78,7 @@ class StorageService {
                 prepped.setString(4, img.credit)
                 prepped.setString(5, img.captureDate)
                 prepped.setString(6, img.captureTime)
-                prepped.setString(7, java.lang.String.join(", ", sanitizeKeywords(img.keywords)))
+                prepped.setString(7, java.lang.String.join(", ", img.keywords.distinct()))
                 prepped.setString(8, img.exposureDetails?.focalLength)
                 prepped.setString(9, img.exposureDetails?.aperture)
                 prepped.setString(10, img.exposureDetails?.exposureTime)
@@ -97,12 +97,6 @@ class StorageService {
         }
     }
 
-    private fun sanitizeKeywords(keywords: List<String>) =
-        keywords.distinct()
-            .map {it.lowercase()}
-            .map { it.replace("&", "and") }
-            .map { it.replace(" ", "_") }
-
     fun insertPostedImage(img: ImageMetadata): Int {
         val connection = connect()
         val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
@@ -119,7 +113,7 @@ class StorageService {
                 prepped.setString(8, img.credit)
                 prepped.setString(9, img.captureDate)
                 prepped.setString(10, img.captureTime)
-                prepped.setString(11, java.lang.String.join(", ", sanitizeKeywords(img.keywords)))
+                prepped.setString(11, java.lang.String.join(", ", img.keywords.distinct()))
                 prepped.setString(12, img.exposureDetails?.focalLength)
                 prepped.setString(13, img.exposureDetails?.aperture)
                 prepped.setString(14, img.exposureDetails?.exposureTime)

@@ -13,7 +13,7 @@ data class ImageFrontMatter(
     val title: String,
     val description: String,
     val credit: String? = null,
-    val year: String? = null,
+    val years: String? = null,
     val captureDate: String? = null,
     val captureDateTime: String? = null,
     var imagePaths: GalleryImage? = null,
@@ -51,7 +51,7 @@ data class ImageFrontMatter(
                 title = imageMetadata.title ?: "Insert title here",
                 description = imageMetadata.description ?: "Insert description here",
                 credit = imageMetadata.credit,
-                year = captured?.year?.toString(),
+                years = captured?.year?.toString(),
                 captureDate = captured?.toLocalDate()?.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 captureDateTime = captured?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 imagePaths = GalleryImage.from(imageMetadata.path, imageMetadata.getReference()),
@@ -82,7 +82,13 @@ data class AllImages(
 )
 
 @Serializable
+data class AllKeywords(
+    val keyword: Map<String, KeywordItem>
+)
+
+@Serializable
 data class KeywordItem(
     val keyword: String,
     val count: Int,
+    val weight: Int = 0,
 )
