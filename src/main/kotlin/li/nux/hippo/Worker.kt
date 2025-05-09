@@ -28,6 +28,7 @@ import li.nux.hippo.helpers.updateAlbumMarkdownDocs
 import li.nux.hippo.model.ConvertedImage
 import li.nux.hippo.model.ImageChanges
 import li.nux.hippo.model.ImageMetadata
+import li.nux.hippo.model.ResizableBy
 import net.coobird.thumbnailator.filters.Watermark
 import net.coobird.thumbnailator.geometry.Positions
 import org.apache.tika.Tika
@@ -143,8 +144,14 @@ private fun createResizedImageSetsWithoutWatermarks(
     destinationFolder: String
 ) {
     val albumPath = imageMetadata.path + File.separator
-    when (val reducedHeight = convertedImageSize.reduceTo) {
-        null -> {
+    val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
+    val reduceInfo = ReduceInfo.from(convertedImageSize, originalImage.width, originalImage.height)
+//    if (imageMetadata.filename.contains("PJ5A4026-Edit")) {
+//        println("fo2_z128cwr6_pnki1x reduceInfo: $reduceInfo. w=${originalImage.width}, h=${originalImage.height}")
+//    }
+
+    when (reduceInfo.needResize) {
+        false -> {
             val imageFrom = Path.of(albumPath + imageMetadata.filename)
             Files.copy(
                 imageFrom,
@@ -154,14 +161,17 @@ private fun createResizedImageSetsWithoutWatermarks(
             )
         }
 
-        else -> {
+        true -> {
             try {
-                val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
                 val resized = Scalr.resize(
                     originalImage,
                     Scalr.Method.ULTRA_QUALITY,
-                    Scalr.Mode.FIT_TO_HEIGHT,
-                    min(originalImage.height, reducedHeight)
+                    reduceInfo.scaleMode,
+                    if (reduceInfo.scaleMode == Scalr.Mode.FIT_TO_HEIGHT) {
+                        min(originalImage.height, reduceInfo.reduceTo)
+                    } else {
+                        min(originalImage.width, reduceInfo.reduceTo)
+                    }
                 )
                 ImageIO.write(
                     resized,
@@ -196,15 +206,20 @@ private fun getImageResizedIfNeeded(
     convertedImageSize: ConvertedImage,
     albumPath: String,
     imageMetadata: ImageMetadata
-): BufferedImage = when (val reducedHeight = convertedImageSize.reduceTo) {
-    null -> ImageIO.read(File(albumPath + imageMetadata.filename))
-    else -> {
-        val oldImage = ImageIO.read(File(albumPath + imageMetadata.filename))
-        Scalr.resize(
-            oldImage,
+): BufferedImage {
+    val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
+    val reduceInfo = ReduceInfo.from(convertedImageSize, originalImage.width, originalImage.height)
+    return when (reduceInfo.needResize) {
+        false -> originalImage
+        true -> Scalr.resize(
+            originalImage,
             Scalr.Method.ULTRA_QUALITY,
-            Scalr.Mode.FIT_TO_HEIGHT,
-            min(oldImage.height, reducedHeight)
+            reduceInfo.scaleMode,
+            if (reduceInfo.scaleMode == Scalr.Mode.FIT_TO_HEIGHT) {
+                min(originalImage.height, reduceInfo.reduceTo)
+            } else {
+                min(originalImage.width, reduceInfo.reduceTo)
+            }
         )
     }
 }
@@ -301,5 +316,25 @@ fun printResult(taskResults: MutableMap<TaskResult, Int>) {
             println(str)
         }
         println("=".repeat(len*2))
+    }
+}
+
+data class ReduceInfo(
+    val needResize: Boolean,
+    val scaleMode: Scalr.Mode,
+    val reduceTo: Int,
+) {
+    companion object {
+        fun from(convertedImageSize: ConvertedImage, width: Int, height: Int): ReduceInfo {
+            return when (convertedImageSize.getTypeOfReduceTo()) {
+                ResizableBy.HEIGHT -> ReduceInfo(true, Scalr.Mode.FIT_TO_HEIGHT, convertedImageSize.reduceToHeight!!)
+                ResizableBy.WIDTH -> ReduceInfo(true, Scalr.Mode.FIT_TO_WIDTH, convertedImageSize.reduceToWidth!!)
+                ResizableBy.BOTH -> when (width > height) {
+                    true -> ReduceInfo(true, Scalr.Mode.FIT_TO_WIDTH, convertedImageSize.reduceToWidth!!)
+                    false -> ReduceInfo(true, Scalr.Mode.FIT_TO_HEIGHT, convertedImageSize.reduceToHeight!!)
+                }
+                ResizableBy.NONE -> ReduceInfo(false, Scalr.Mode.FIT_TO_HEIGHT, 1)
+            }
+        }
     }
 }
