@@ -12,11 +12,18 @@ fun getAllImagesFromDisk(
     paths: List<Path>,
     tika: Tika,
     params: HippoParams,
+    demoResponse: DemoResponse,
 ): List<ImageMetadata> {
     return paths
         .filter { isJpeg(tika, it) }
         .filterNot { it.fileName.startsWith(ImageMetadata.IMG_NAME_PREFIX) }
-        .map { getImageMetadata(it, params) }
+        .map {
+            if (demoResponse.isDemo) {
+                getDemoImageMetadata(it, demoResponse)
+            } else {
+                getImageMetadata(it, params)
+            }
+        }
 }
 
 private fun isJpeg(tika: Tika, it: Path): Boolean {

@@ -29,7 +29,11 @@ private const val YAML_WRAPPING = "---\n"
 private fun tomlWrap(string: String): String = TOML_WRAPPING + string + "\n$TOML_WRAPPING"
 private fun yamlWrap(string: String): String = YAML_WRAPPING + string + "\n$YAML_WRAPPING"
 
-fun updateAlbumMarkdownDocs(allImages: Map<String, List<ImageMetadata>>, params: HippoParams, hugoPaths: HugoPaths) {
+fun updateAlbumMarkdownDocs(
+    allImages: Map<String, List<ImageMetadata>>,
+    params: HippoParams,
+    hugoPaths: HugoPaths,
+) {
     printIf(params, "(Re-)creating album markdown files for ${allImages.keys.size} albums")
     val imagesByPath = allImages.values.flatten().groupBy { it.path }
     val albums = imagesByPath.map { (path, images) ->

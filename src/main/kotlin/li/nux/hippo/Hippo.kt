@@ -22,16 +22,20 @@ class Hippo : CliktCommand() {
         .choice("front_matter", "image_metadata", "both")
         .default("both")
         .help("From which source should changes be accepted?")
-    private val precedence: String by option("-p", "--precedence")
-        .choice("front_matter", "image_metadata")
-        .default("front_matter")
-        .help("If both the Hugo front matter and the image metadata have changed, which one takes precedence?")
+    private val demo: String? by option("-d", "--demo")
+        .optionalValue("true")
+        .default("false")
+        .help("If specified demo photos will be used")
     private val format: String by option("-f", "--format")
         .choice("json", "yaml") // , "toml"
         .default("yaml")
         .help("The format to be used for front matter segment")
+    private val precedence: String by option("-p", "--precedence")
+        .choice("front_matter", "image_metadata")
+        .default("front_matter")
+        .help("If both the Hugo front matter and the image metadata have changed, which one takes precedence?")
     private val watermark: String? by option("-w", "--watermark")
-        .help("The format to be used for front matter segment")
+        .help("Specify this to add a watermark to the photos")
     private val verbose: String by option("--verbose")
         .optionalValue("true")
         .default("false")
@@ -47,6 +51,7 @@ class Hippo : CliktCommand() {
             frontMatterFormat = format.toFrontMatterFormat(),
             watermark = watermark,
             verbose = verbose.toBoolean(),
+            demo = demo.toBoolean(),
             contentDirectory = directory,
         )
         isHugoSiteDirectory(directory)?.let { paths ->
@@ -76,7 +81,7 @@ class Hippo : CliktCommand() {
                     .toRealPath(LinkOption.NOFOLLOW_LINKS),
                 assets = Paths.get(path.toString() + File.separator + HugoSubfolder.ASSETS.folderName)
                     .toRealPath(LinkOption.NOFOLLOW_LINKS),
-
+                theme = Paths.get("").toAbsolutePath(),
             )
         } else {
             null

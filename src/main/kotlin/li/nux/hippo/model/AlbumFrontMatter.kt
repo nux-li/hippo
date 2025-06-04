@@ -19,7 +19,6 @@ data class Album(
     var coverImage: GalleryImage? = null,
     var subAlbums: List<SubAlbum> = emptyList(),
     val images: List<AlbumImage> = emptyList(),
-//    @Serializable(with = LocalDateTimeSerializer::class)
     val lastUpdated: String = formatter.format(LocalDateTime.now()),
 ) {
     companion object {
@@ -70,7 +69,6 @@ data class SubAlbum(
     val coverImage: GalleryImage? = null,
     val imageCount: Int? = null,
     val path: String,
-//    @Serializable(with = LocalDateTimeSerializer::class)
     val lastUpdated: String = formatter.format(LocalDateTime.now()),
 ) {
     companion object {
@@ -96,7 +94,6 @@ data class AlbumImage(
     val imageId: String,
     val imagePaths: GalleryImage,
     val imageTitle: String,
-//    @Serializable(with = LocalDateTimeSerializer::class)
     val lastUpdated: String = formatter.format(LocalDateTime.now())
 ) {
     companion object {

@@ -16,7 +16,9 @@ import li.nux.hippo.TaskResult.IMAGES_FROM_PREVIOUS_RUN
 import li.nux.hippo.TaskResult.NEW_ALBUM_TOTAL
 import li.nux.hippo.TaskResult.NEW_IMAGES
 import li.nux.hippo.TaskResult.NEW_IMAGE_TOTAL
+import li.nux.hippo.helpers.DemoResponse
 import li.nux.hippo.helpers.createOrReplacePages
+import li.nux.hippo.helpers.fetchImagesIfDemo
 import li.nux.hippo.helpers.getAllImagesFromDisk
 import li.nux.hippo.helpers.getImagesFromFrontMatters
 import li.nux.hippo.helpers.getSetOfPaths
@@ -54,12 +56,18 @@ fun execute(
 
     printIf(params, "Searching " + path.fileName.normalize() + " for image files...")
     sanitizeDirectoryNames(hugoPaths, params)
+
+    // TODO if demo flag is set - check whether albums dir is empty - if not: fail
+    //      when empty download images specified in dummy.json and place them
+    //      in random subfolders under albums directory
+    val demoResponse = fetchImagesIfDemo(params, hugoPaths)
+
     printIf(
         params,
         "Btw. Verbose: ${params.verbose}, Precedence: ${params.precedence}, format: ${params.frontMatterFormat}"
     )
 
-    val imageChanges = synchronizeImages(path, storageService, taskResults, params)
+    val imageChanges = synchronizeImages(path, storageService, taskResults, params, demoResponse)
 
     // DB is updated. Now handle markdown files
     val allImages = storageService.fetchAllImages()
@@ -146,9 +154,6 @@ private fun createResizedImageSetsWithoutWatermarks(
     val albumPath = imageMetadata.path + File.separator
     val originalImage = ImageIO.read(File(albumPath + imageMetadata.filename))
     val reduceInfo = ReduceInfo.from(convertedImageSize, originalImage.width, originalImage.height)
-//    if (imageMetadata.filename.contains("PJ5A4026-Edit")) {
-//        println("fo2_z128cwr6_pnki1x reduceInfo: $reduceInfo. w=${originalImage.width}, h=${originalImage.height}")
-//    }
 
     when (reduceInfo.needResize) {
         false -> {
@@ -228,7 +233,8 @@ private fun synchronizeImages(
     path: Path,
     storageService: StorageService,
     taskResults: MutableMap<TaskResult, Int>,
-    params: HippoParams
+    params: HippoParams,
+    demoResponse: DemoResponse
 ): ImageChanges {
     val tika = Tika()
     val images: MutableMap<String, ImageMetadata> = mapOf<String, ImageMetadata>().toMutableMap()
@@ -245,7 +251,7 @@ private fun synchronizeImages(
     )
 
     // Read all images from disk
-    val imagesFromDisk: List<ImageMetadata> = getAllImagesFromDisk(paths, tika, params)
+    val imagesFromDisk: List<ImageMetadata> = getAllImagesFromDisk(paths, tika, params, demoResponse)
 
     // Read all markdown front matters from disk
     val imagesFromFrontMatters: List<ImageMetadata> = getImagesFromFrontMatters(paths, tika)

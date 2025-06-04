@@ -23,6 +23,8 @@ fun createDatafileWithAllImages(
     hugoPaths: HugoPaths,
     imfMap: MutableMap<String, ImageFrontMatter>
 ) {
+    val dataDirectory = hugoPaths.root.toAbsolutePath().toString() + File.separator + "data" + File.separator + "foto"
+    Files.createDirectories(Paths.get(dataDirectory).toAbsolutePath())
     val datafile = Paths.get(
         hugoPaths.root.toAbsolutePath().toString() +
             File.separator + "data" + File.separator + "foto" + File.separator + "images.json"
@@ -43,8 +45,8 @@ fun createDatafileWithAllKeywords(
         .flatten()
         .groupBy { it }
         .map { KeywordItem(it.key, it.value.size) }
-    val bucketSize = keywordItems.map { item: KeywordItem -> item.count }
-        .maxOrNull()?.let { ((it.toDouble() + 1.0) / NUMBER_OF_BUCKETS).roundToInt() } ?: 0
+    val bucketSize = keywordItems.maxOfOrNull { item: KeywordItem -> item.count }
+        ?.let { ((it.toDouble() + 1.0) / NUMBER_OF_BUCKETS).roundToInt() } ?: 0
 
     val keywords = keywordItems.map { it.copy(weight = ((it.count + 1).toDouble() / bucketSize).roundToInt()) }
         .groupBy { it.keyword }.mapKeys { it.key.lowercase() }.mapValues { it.value.first() }

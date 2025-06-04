@@ -34,7 +34,7 @@ data class ImageMetadata(
     }
 
     fun getAlbumAndFilename(): String {
-        return album + "/" + filename
+        return "$album/$filename"
     }
 
     override fun hashCode(): Int {
@@ -75,7 +75,7 @@ data class ImageMetadata(
     companion object {
         const val RADIX = 35
         const val IMG_NAME_PREFIX = "fo2_"
-        val df = DateTimeFormatter.ofPattern("yyyyMMdd")
+        private val df: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
         fun fromResultSet(resultSet: ResultSet) = ImageMetadata(
             id = resultSet.getInt("id"),
