@@ -7,7 +7,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.stream.Collectors
-import kotlin.io.path.isDirectory
 import li.nux.hippo.HippoParams
 import li.nux.hippo.HugoPaths
 import li.nux.hippo.MAX_DIRECTORY_DEPTH
@@ -32,9 +31,7 @@ fun isDirectSubfolder(subfolder: String, albumPath: String): Boolean {
 }
 
 fun sanitizeDirectoryNames(hugoPaths: HugoPaths, params: HippoParams) {
-    if (!hugoPaths.albums.isDirectory()) {
-        Files.createDirectories(hugoPaths.albums.toAbsolutePath())
-    }
+    Files.createDirectories(hugoPaths.albums.toAbsolutePath())
     Files.walk(hugoPaths.albums, MAX_DIRECTORY_DEPTH)
         .filter { p -> Files.isDirectory(p) }
         .collect(Collectors.toList())

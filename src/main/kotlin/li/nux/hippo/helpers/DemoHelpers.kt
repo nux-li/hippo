@@ -20,6 +20,19 @@ private val albumNames = (1.. NUMBER_OF_ALBUMS).toList().map { "Album-$it" }
 private val subAlbum = Pair(albumNames.random(), "Sub Album")
 const val NUMBER_OF_KEYWORDS_TO_USE = 5
 
+fun deleteDemoFiles(hugoPaths: HugoPaths) {
+    albumNames.forEach { albumName ->
+        val albumPath = hugoPaths.albums.toAbsolutePath().toString() + File.separator + albumName
+        File(albumPath).deleteRecursively()
+
+        val assetsAlbumPath = hugoPaths.assets.toAbsolutePath().toString() + File.separator +
+            "images" + File.separator+ albumName
+        File(assetsAlbumPath).deleteRecursively()
+
+        val albumsIndex = hugoPaths.albums.toAbsolutePath().toString() + File.separator + "_index.md"
+        File(albumsIndex).delete()
+    }
+}
 fun fetchImagesIfDemo(params: HippoParams, hugoPaths: HugoPaths): DemoResponse {
     if (!params.demo) {
         return DemoResponse(isDemo = false)

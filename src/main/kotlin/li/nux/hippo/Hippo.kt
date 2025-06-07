@@ -9,11 +9,12 @@ import java.util.stream.Collectors
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.arguments.default
 import com.github.ajalt.clikt.parameters.arguments.help
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.optionalValue
 import com.github.ajalt.clikt.parameters.types.choice
 import li.nux.hippo.model.HugoSubfolder
 
@@ -22,9 +23,7 @@ class Hippo : CliktCommand() {
         .choice("front_matter", "image_metadata", "both")
         .default("both")
         .help("From which source should changes be accepted?")
-    private val demo: String? by option("-d", "--demo")
-        .optionalValue("true")
-        .default("false")
+    private val demo: Boolean by option("-d", "--demo").flag(default = false)
         .help("If specified demo photos will be used")
     private val format: String by option("-f", "--format")
         .choice("json", "yaml") // , "toml"
@@ -36,12 +35,13 @@ class Hippo : CliktCommand() {
         .help("If both the Hugo front matter and the image metadata have changed, which one takes precedence?")
     private val watermark: String? by option("-w", "--watermark")
         .help("Specify this to add a watermark to the photos")
-    private val verbose: String by option("--verbose")
-        .optionalValue("true")
-        .default("false")
+    private val verbose: Boolean by option("--verbose").flag(default = false)
         .help("Log detailed information")
+    private val clear: Boolean by option("--clear").flag(default = false)
+        .help("Remove demo files if existing. Also removed the database. Use with caution!")
     private val directory: String by argument()
         .help("Path to the content directory for your Hugo website project")
+        .default("../..")
 
     override fun run() {
         echo(appHeader())
@@ -50,17 +50,22 @@ class Hippo : CliktCommand() {
             precedence = precedence.toPrecedence(),
             frontMatterFormat = format.toFrontMatterFormat(),
             watermark = watermark,
-            verbose = verbose.toBoolean(),
-            demo = demo.toBoolean(),
+            verbose = verbose,
+            demo = demo,
             contentDirectory = directory,
         )
+//        val doClear = clear.toBoolean()
         isHugoSiteDirectory(directory)?.let { paths ->
             init()
             printIf(params, "HugoPaths: $paths")
-            execute(
-                paths,
-                params,
-            )
+            if (clear) {
+                clear(paths)
+            } else {
+                execute(
+                    paths,
+                    params,
+                )
+            }
         } ?: {
             println(
                 "Parameter was $directory. It should have been the path of the Hugo content folder. No changes done."

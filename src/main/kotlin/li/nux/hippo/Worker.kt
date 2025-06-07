@@ -18,6 +18,7 @@ import li.nux.hippo.TaskResult.NEW_IMAGES
 import li.nux.hippo.TaskResult.NEW_IMAGE_TOTAL
 import li.nux.hippo.helpers.DemoResponse
 import li.nux.hippo.helpers.createOrReplacePages
+import li.nux.hippo.helpers.deleteDemoFiles
 import li.nux.hippo.helpers.fetchImagesIfDemo
 import li.nux.hippo.helpers.getAllImagesFromDisk
 import li.nux.hippo.helpers.getImagesFromFrontMatters
@@ -44,6 +45,11 @@ const val WATERMARK_OPACITY = 0.3f
 
 fun init() {
     StorageService.createTable()
+}
+
+fun clear(hugoPaths: HugoPaths) {
+    deleteDemoFiles(hugoPaths)
+    File(hugoPaths.theme.toAbsolutePath().toString() + File.separator + "hippo.db").delete()
 }
 
 fun execute(
