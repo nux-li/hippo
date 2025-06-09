@@ -16,6 +16,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
+import li.nux.hippo.helpers.addTaxonomiesToHugoConfig
 import li.nux.hippo.model.HugoSubfolder
 
 class Hippo : CliktCommand() {
@@ -58,6 +59,7 @@ class Hippo : CliktCommand() {
         isHugoSiteDirectory(directory)?.let { paths ->
             init()
             printIf(params, "HugoPaths: $paths")
+            addTaxonomiesToHugoConfig(paths)
             if (clear) {
                 clear(paths)
             } else {
