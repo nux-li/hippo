@@ -3,6 +3,7 @@ package li.nux.hippo.model
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -10,6 +11,7 @@ data class ImageFrontMatter(
     @kotlinx.serialization.Transient
     val imageId: String = "",
     val controlCode: String,
+    @SerialName("imageTitle")
     val title: String,
     val description: String,
     val credit: String? = null,

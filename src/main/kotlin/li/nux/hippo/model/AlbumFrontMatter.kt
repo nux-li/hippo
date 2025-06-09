@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.Locale
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -14,6 +15,7 @@ data class Album(
     val pageType: String = "album",
     val albumId: String,
     val controlCode: String,
+    @SerialName("albumTitle")
     var title: String = "",
     var description: String = "",
     var coverImage: GalleryImage? = null,
@@ -65,6 +67,7 @@ data class Album(
 @Serializable
 data class SubAlbum(
     val albumId: String,
+    @SerialName("albumTitle")
     val title: String,
     val coverImage: GalleryImage? = null,
     val imageCount: Int? = null,
