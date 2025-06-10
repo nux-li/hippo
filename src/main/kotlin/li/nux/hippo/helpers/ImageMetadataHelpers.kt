@@ -21,6 +21,7 @@ import com.drew.metadata.exif.ExifDirectoryBase.TAG_MAKE
 import com.drew.metadata.exif.ExifDirectoryBase.TAG_MODEL
 import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
+import com.thedeanda.lorem.LoremIpsum
 import li.nux.hippo.HippoParams
 import li.nux.hippo.model.ExposureDetails
 import li.nux.hippo.model.ImageMetadata
@@ -40,7 +41,7 @@ fun getDemoImageMetadata(file: Path, demoResponse: DemoResponse): ImageMetadata 
         album = album,
         filename = filename,
         title = filename.replace("demo_image_", "Image title ").replace(".jpg", ""),
-        description = "Enter description here",
+        description = LoremIpsum.getInstance().getParagraphs(MIN_PARAGRAPHS, MAX_PARAGRAPHS),
         credit = demoImage?.first()?.credit ?: "Unknown",
         keywords = demoResponse.demoData?.keywords?.shuffled()?.take(NUMBER_OF_KEYWORDS_TO_USE) ?: emptyList(),
         captureDate = randomDateString.split("T").first(),

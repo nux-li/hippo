@@ -19,6 +19,8 @@ private const val NUMBER_OF_SUB_ALBUMS = 1
 private val albumNames = (1.. NUMBER_OF_ALBUMS).toList().map { "Album-$it" }
 private val subAlbum = Pair(albumNames.random(), "Sub Album")
 const val NUMBER_OF_KEYWORDS_TO_USE = 5
+const val MIN_PARAGRAPHS = 1
+const val MAX_PARAGRAPHS = 4
 
 fun deleteDemoFiles(hugoPaths: HugoPaths) {
     albumNames.forEach { albumName ->

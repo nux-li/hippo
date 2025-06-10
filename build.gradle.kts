@@ -27,6 +27,7 @@ dependencies {
     implementation("org.imgscalr:imgscalr-lib:4.2")
     implementation("org.apache.tika:tika-core:3.1.0")
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
+    implementation("com.thedeanda:lorem:2.2")
     implementation("org.slf4j:slf4j-api:2.0.17")
     implementation("org.slf4j:slf4j-simple:2.0.17")
     testImplementation(kotlin("test"))
