@@ -17,6 +17,8 @@ import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.choice
 import li.nux.hippo.helpers.addTaxonomiesToHugoConfig
+import li.nux.hippo.helpers.clear
+import li.nux.hippo.helpers.regenerate
 import li.nux.hippo.model.HugoSubfolder
 
 class Hippo : CliktCommand() {
@@ -40,6 +42,8 @@ class Hippo : CliktCommand() {
         .help("Log detailed information")
     private val clear: Boolean by option("--clear").flag(default = false)
         .help("Remove demo files if existing. Also removed the database. Use with caution!")
+    private val regenerate: Boolean by option("--regenerate").flag(default = false)
+        .help("Remove markdown files if existing. Also removed the database. Use with caution!")
     private val directory: String by argument()
         .help("Path to the content directory for your Hugo website project")
         .default("../..")
@@ -57,6 +61,9 @@ class Hippo : CliktCommand() {
         )
 //        val doClear = clear.toBoolean()
         isHugoSiteDirectory(directory)?.let { paths ->
+            if (regenerate) {
+                regenerate(paths)
+            }
             init()
             printIf(params, "HugoPaths: $paths")
             addTaxonomiesToHugoConfig(paths)

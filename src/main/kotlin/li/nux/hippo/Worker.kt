@@ -4,7 +4,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Locale
+import java.nio.file.StandardCopyOption
 import javax.imageio.IIOException
 import javax.imageio.ImageIO
 import kotlin.math.min
@@ -41,15 +41,10 @@ const val MAX_DIRECTORY_DEPTH = 10
 const val WATERMARK_LOWER_THRESHOLD = 1000
 const val WATERMARK_MIN_WIDTH = 200
 const val FIFTH = 5
-const val WATERMARK_OPACITY = 0.3f
+const val WATERMARK_OPACITY = 0.6f
 
 fun init() {
     StorageService.createTable()
-}
-
-fun clear(hugoPaths: HugoPaths) {
-    deleteDemoFiles(hugoPaths)
-    File(hugoPaths.theme.toAbsolutePath().toString() + File.separator + "hippo.db").delete()
 }
 
 fun execute(
@@ -168,7 +163,8 @@ private fun createResizedImageSetsWithoutWatermarks(
                 imageFrom,
                 destination.resolve(
                     imageMetadata.getReference() + convertedImageSize.filenamePostfix
-                )
+                ),
+                StandardCopyOption.REPLACE_EXISTING
             )
         }
 
@@ -317,17 +313,6 @@ private fun getUpdateList(
             Precedence.FRONT_MATTER -> frontMatterChanged
             Precedence.IMAGE_METADATA -> imagesChangedOnDisk
         }
-    }
-}
-
-fun printResult(taskResults: MutableMap<TaskResult, Int>) {
-    taskResults.keys.maxOfOrNull { it.description.length }?.let { len ->
-        println("=".repeat(len*2))
-        taskResults.forEach {
-            val str = String.format(Locale.getDefault(), "%${len}s : %d", it.key.description, it.value)
-            println(str)
-        }
-        println("=".repeat(len*2))
     }
 }
 

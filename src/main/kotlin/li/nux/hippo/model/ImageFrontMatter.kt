@@ -22,6 +22,8 @@ data class ImageFrontMatter(
     var imagePaths: GalleryImage? = null,
     val keywords: List<String>,
     val exifDetails: ExposureDetails? = null,
+    val stockImageSite: String? = null,
+    val extra: Map<String, String>,
 ) {
 
     fun toImageMetadata(): ImageMetadata {
@@ -38,6 +40,7 @@ data class ImageFrontMatter(
             captureTime = localDateTime?.let { DateTimeFormatter.ofPattern("HHmmss").format(it) },
             keywords = keywords,
             exposureDetails = exifDetails,
+            extra = extra,
         )
     }
 
@@ -61,7 +64,8 @@ data class ImageFrontMatter(
                 captureDateTime = captured?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 imagePaths = GalleryImage.from(imageMetadata.path, imageMetadata.getReference()),
                 keywords = imageMetadata.keywords,
-                exifDetails = imageMetadata.exposureDetails?.ifAnyData()
+                exifDetails = imageMetadata.exposureDetails?.ifAnyData(),
+                extra = imageMetadata.extra,
             )
         }
 

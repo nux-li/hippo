@@ -6,6 +6,7 @@ import java.sql.ResultSet
 import java.sql.SQLException
 import java.text.SimpleDateFormat
 import java.util.Date
+import li.nux.hippo.helpers.prettyJson
 import li.nux.hippo.model.ImageMetadata
 import li.nux.hippo.model.ImageMetadata.Companion.fromResultSet
 import mu.KotlinLogging
@@ -69,7 +70,6 @@ class StorageService {
     fun updatePostedImage(id: Int, img: ImageMetadata) {
         val connection = connect()
         val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
-        var ndx = 0
         try {
             connection.prepareStatement(UPDATE_POSTED_IMAGE).use { prepped ->
                 prepped.setInt(1, img.hashCode())
@@ -85,22 +85,22 @@ class StorageService {
                 prepped.setString(11, img.exposureDetails?.iso)
                 prepped.setString(12, img.exposureDetails?.cameraMake)
                 prepped.setString(13, img.exposureDetails?.cameraModel)
-                prepped.setString(14, now)
-                prepped.setInt(15, id)
+                prepped.setString(14, img.extra.let { prettyJson.encodeToString(it) })
+                prepped.setString(15, now)
+                prepped.setInt(16, id)
                 prepped.executeUpdate()
             }
         } catch (e: SQLException) {
             log.error("Failed to update posted image with id ${img.id}: {}", e.message)
             throw StorageException("Failed to update posted image with id ${img.id}")
         } finally {
-            log.trace("[$ndx] updated posted image with id ${img.id}")
+            log.trace("updated posted image with id ${img.id}")
         }
     }
 
     fun insertPostedImage(img: ImageMetadata): Int {
         val connection = connect()
         val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
-        var ndx = 0
         try {
             connection.prepareStatement(INSERT_POSTED_IMAGE).use { prepped ->
                 prepped.setString(1, img.getReference())
@@ -120,8 +120,9 @@ class StorageService {
                 prepped.setString(15, img.exposureDetails?.iso)
                 prepped.setString(16, img.exposureDetails?.cameraMake)
                 prepped.setString(17, img.exposureDetails?.cameraModel)
-                prepped.setString(18, now)
+                prepped.setString(18, img.extra.let { prettyJson.encodeToString(it) } )
                 prepped.setString(19, now)
+                prepped.setString(20, now)
                 prepped.executeUpdate()
                 return prepped.generatedKeys.getInt(1)
             }
@@ -129,7 +130,7 @@ class StorageService {
             System.err.println(e.message)
             return -1
         } finally {
-            log.trace("[$ndx] inserted new posted image with reference ${img.getReference()}")
+            log.trace(" inserted new posted image with reference ${img.getReference()}")
         }
     }
 
@@ -168,8 +169,9 @@ class StorageService {
                 iso TEXT,
                 camera_make TEXT,
                 camera_model TEXT,
-                created DATETIME NOT NULL, 
-                updated DATETIME NOT NULL
+                extra_fields TEXT NOT NULL,
+                created TEXT NOT NULL, 
+                updated TEXT NOT NULL
             );"""
 
         private const val UPDATE_POSTED_IMAGE = """
@@ -187,6 +189,7 @@ class StorageService {
                 iso = ?, 
                 camera_make = ?, 
                 camera_model = ?,
+                extra_fields = ?,
                 updated = ?
             WHERE id = ?
         """
@@ -212,10 +215,11 @@ class StorageService {
                 iso, 
                 camera_make, 
                 camera_model, 
+                extra_fields,
                 created, 
                 updated
             ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
 
         fun createTable() {

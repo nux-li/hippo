@@ -35,6 +35,7 @@ fun deleteDemoFiles(hugoPaths: HugoPaths) {
         File(albumsIndex).delete()
     }
 }
+
 fun fetchImagesIfDemo(params: HippoParams, hugoPaths: HugoPaths): DemoResponse {
     if (!params.demo) {
         return DemoResponse(isDemo = false)

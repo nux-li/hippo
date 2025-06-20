@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Objects
 import kotlinx.serialization.Serializable
+import li.nux.hippo.helpers.prettyJson
 
 data class ImageMetadata(
     var id: Int? = null,
@@ -22,6 +23,7 @@ data class ImageMetadata(
     val exposureDetails: ExposureDetails? = null,
     val created: LocalDateTime? = null,
     val updated: LocalDateTime? = null,
+    val extra: Map<String, String> = emptyMap(),
 ) {
     fun getReference() = IMG_NAME_PREFIX + getDocumentId()
 
@@ -48,7 +50,8 @@ data class ImageMetadata(
             captureDate,
             captureTime,
             keywords,
-            exposureDetails
+            exposureDetails,
+            extra,
         )
     }
 
@@ -57,19 +60,17 @@ data class ImageMetadata(
         if (javaClass != other?.javaClass) return false
 
         other as ImageMetadata
-
-        if (path != other.path) return false
-        if (album != other.album) return false
-        if (filename != other.filename) return false
-        if (title != other.title) return false
-        if (description != other.description) return false
-        if (credit != other.credit) return false
-        if (captureDate != other.captureDate) return false
-        if (captureTime != other.captureTime) return false
-        if (keywords != other.keywords) return false
-        if (exposureDetails != other.exposureDetails) return false
-
-        return true
+        return path == other.path &&
+            album == other.album &&
+            filename == other.filename &&
+            title == other.title &&
+            description == other.description &&
+            credit == other.credit &&
+            captureDate == other.captureDate &&
+            captureTime == other.captureTime &&
+            keywords == other.keywords &&
+            exposureDetails == other.exposureDetails &&
+            extra == other.extra
     }
 
     companion object {
@@ -97,6 +98,7 @@ data class ImageMetadata(
                 cameraMake = resultSet.getString("camera_make"),
                 cameraModel = resultSet.getString("camera_model"),
             ),
+            extra = resultSet.getString("extra_fields").let { prettyJson.decodeFromString(it) },
             created = resultSet.getTimestamp("created").toLocalDateTime(),
             updated = resultSet.getTimestamp("updated").toLocalDateTime(),
         )

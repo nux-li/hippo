@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.Base64
+import java.util.Locale
 
 private const val LOGO = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
     "F98IHxfIF8gX18gIF8gX18gICBfX18gIA0KfCAgXyAgfCB8ICdfIFx8ICdfIFwgLyBfIFwgDQp8IHwgfCB8IHwgfF8pIHwgfF8pIHwg" +
@@ -67,6 +68,17 @@ fun printIf(params: HippoParams, string: String) {
 
 fun printError(string: String) {
     println(string)
+}
+
+fun printResult(taskResults: MutableMap<TaskResult, Int>) {
+    taskResults.keys.maxOfOrNull { it.description.length }?.let { len ->
+        println("=".repeat(len*2))
+        taskResults.forEach {
+            val str = String.format(Locale.getDefault(), "%${len}s : %d", it.key.description, it.value)
+            println(str)
+        }
+        println("=".repeat(len*2))
+    }
 }
 
 data class HippoParams(

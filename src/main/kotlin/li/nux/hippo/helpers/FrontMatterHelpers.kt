@@ -46,7 +46,6 @@ fun updateAlbumMarkdownDocs(
         printIf(params, "Creating root folder for ${params.getContentDirectoryFullPath()}")
         groupedByPath[params.contentDirectory] = listOf(
             Album.rootFolder(hugoPaths.albums.toString())
-//            Album.rootFolder(params.getContentDirectoryFullPath() + "/content/albums")
         )
     }
     groupedByPath.forEach { (albumPath, albums) ->
@@ -135,11 +134,12 @@ fun createOrReplacePages(
 fun getImagesFromFrontMatters(
     paths: List<Path>,
     tika: Tika
-) = paths
-    .filter { it.fileName.startsWith(IMG_NAME_PREFIX) }
+): List<ImageMetadata> = paths
+    .filter { it.fileName.toString().startsWith(IMG_NAME_PREFIX) }
     .filter {
         tika.detect(it).let { mimeType -> MediaFormat.fromMimeType(mimeType) == MediaFormat.MARKDOWN }
-    }.map { getImageDataFromFrontMatter(it).toImageMetadata() }
+    }
+    .map { getImageDataFromFrontMatter(it).toImageMetadata() }
 
 fun getImageDataFromFrontMatter(file: Path): ImageFrontMatter {
     val allLines = Files.readAllLines(file)

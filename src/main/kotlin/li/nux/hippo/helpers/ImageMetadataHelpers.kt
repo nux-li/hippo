@@ -92,7 +92,8 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                         iso = iso,
                         cameraMake = make,
                         cameraModel = model,
-                    )
+                    ),
+                    extra = mapOf("parameter_name" to "parameter_value"),
                 )
             }.orElse(ImageMetadata(path = path, album = album, filename = filename))
     } catch (e: ImageProcessingException) {
