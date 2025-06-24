@@ -5,6 +5,7 @@ import java.io.IOException
 import java.nio.file.Files
 import kotlin.io.path.isRegularFile
 import li.nux.hippo.HugoPaths
+import li.nux.hippo.model.ImageFrontMatter.Companion.MARK_DOWN_FILE_EXTENSION
 
 fun clear(hugoPaths: HugoPaths) {
     deleteDemoFiles(hugoPaths)
@@ -19,7 +20,7 @@ fun regenerate(hugoPaths: HugoPaths) {
 fun deleteMarkdownFiles(hugoPaths: HugoPaths) {
     Files.walk(hugoPaths.content)
         .filter { path ->
-            path.isRegularFile() && path.toString().endsWith(".md")
+            path.isRegularFile() && path.toString().endsWith(MARK_DOWN_FILE_EXTENSION)
         }
         .forEach { path ->
             try {

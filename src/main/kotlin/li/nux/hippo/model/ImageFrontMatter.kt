@@ -22,6 +22,7 @@ data class ImageFrontMatter(
     var imagePaths: GalleryImage? = null,
     val keywords: List<String>,
     val exifDetails: ExposureDetails? = null,
+    @SerialName("marketplace")
     val stockImageSite: String? = null,
     val extra: Map<String, String>,
 ) {
@@ -45,6 +46,7 @@ data class ImageFrontMatter(
     }
 
     companion object {
+        const val  MARK_DOWN_FILE_EXTENSION = ".md"
         fun from(imageMetadata: ImageMetadata): ImageFrontMatter {
             val captured= getCapturedDateTime(imageMetadata)
             return ImageFrontMatter(

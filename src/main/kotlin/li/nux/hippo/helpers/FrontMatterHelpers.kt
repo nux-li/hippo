@@ -18,6 +18,7 @@ import li.nux.hippo.HugoPaths
 import li.nux.hippo.MediaFormat
 import li.nux.hippo.model.Album
 import li.nux.hippo.model.ImageFrontMatter
+import li.nux.hippo.model.ImageFrontMatter.Companion.MARK_DOWN_FILE_EXTENSION
 import li.nux.hippo.model.ImageMetadata
 import li.nux.hippo.model.ImageMetadata.Companion.IMG_NAME_PREFIX
 import li.nux.hippo.model.SubAlbum
@@ -26,8 +27,8 @@ import org.apache.tika.Tika
 
 private const val TOML_WRAPPING = "+++\n"
 private const val YAML_WRAPPING = "---\n"
-private fun tomlWrap(string: String): String = TOML_WRAPPING + string + "\n$TOML_WRAPPING"
-private fun yamlWrap(string: String): String = YAML_WRAPPING + string + "\n$YAML_WRAPPING"
+fun tomlWrap(string: String): String = TOML_WRAPPING + string + "\n$TOML_WRAPPING"
+fun yamlWrap(string: String): String = YAML_WRAPPING + string + "\n$YAML_WRAPPING"
 
 fun updateAlbumMarkdownDocs(
     allImages: Map<String, List<ImageMetadata>>,
@@ -103,10 +104,10 @@ fun createOrReplacePages(
     albumsWithImages.forEach {
         printIf(params,
             "Album ${it.key} has ${it.value.size} images. Files to create/update:  ${it.key}.md " +
-                "${it.value.map { img -> img.getDocumentId() + ".md" }.toList()}"
+                "${it.value.map { img -> img.getDocumentId() + MARK_DOWN_FILE_EXTENSION }.toList()}"
         )
         it.value.forEach { im ->
-            val imFile = Paths.get(im.path + File.separator + im.getReference() + ".md")
+            val imFile = Paths.get(im.path + File.separator + im.getReference() + MARK_DOWN_FILE_EXTENSION)
             val imf = ImageFrontMatter.from(im)
             imfMap[imf.imageId] = imf
             val frontMatter = when (params.frontMatterFormat) {

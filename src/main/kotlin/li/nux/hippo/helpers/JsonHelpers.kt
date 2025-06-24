@@ -15,6 +15,7 @@ val prettyJson = Json { // this returns the JsonBuilder
     prettyPrint = true
     encodeDefaults = false
     prettyPrintIndent = "    "
+    explicitNulls = false
 }
 
 private const val NUMBER_OF_BUCKETS = 9
