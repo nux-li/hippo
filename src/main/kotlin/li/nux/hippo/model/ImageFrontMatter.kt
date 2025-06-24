@@ -23,7 +23,7 @@ data class ImageFrontMatter(
     val keywords: List<String>,
     val exifDetails: ExposureDetails? = null,
     @SerialName("marketplace")
-    val stockImageSite: String? = null,
+    val stockImageSite: List<String> = emptyList(),
     val extra: Map<String, String>,
 ) {
 

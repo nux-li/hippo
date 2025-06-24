@@ -28,7 +28,7 @@ fun refine(
             val imageFrontMatter: ImageFrontMatter = getImageDataFromFrontMatter(path)
             imageFrontMatter.extra["stock-url"]?.let { stockUrl ->
                 StockImageServices.fromUrl(stockUrl)?.let {
-                    val imf = imageFrontMatter.copy(stockImageSite = it.name.lowercase().replace("_", "-"))
+                    val imf = imageFrontMatter.copy(stockImageSite = listOf(it.name.lowercase().replace("_", "-")))
                     writeFrontMatterToFile(params, imf, path)
                 }
             }
