@@ -58,6 +58,7 @@ fun updateAlbumMarkdownDocs(
             .filter { isDirectSubfolder(it, realAlbumPath) }
             .flatMap { groupedByPath[it]!! }
             .map { SubAlbum.from(it, realAlbumPath) }
+            .sortedBy { it.title }
         val path = Path.of(albumPath + File.separator + "_index.md")
         printIf(params, "Front matter index path $path")
         val existingAlbumFromFrontMatter = when (path.exists()) {
