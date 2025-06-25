@@ -64,7 +64,7 @@ fun updateAlbumMarkdownDocs(
             true -> getAlbumDataFromFrontMatter(path)
             else -> null
         }
-        albums.forEach {
+        albums.sortedBy { it.title }.forEach {
             it.subAlbums = subAlbums
             existingAlbumFromFrontMatter?.also { afm ->
                 it.title = afm.title.replace('_', ' ')
