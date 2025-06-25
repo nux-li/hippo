@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Base64
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
 
 @Serializable
 data class ImageFrontMatter(
@@ -18,6 +19,7 @@ data class ImageFrontMatter(
     val equipment: List<String>,
     val year: String? = null,
     val captureDate: String? = null,
+    @SerialName("date")
     val captureDateTime: String? = null,
     var imagePaths: GalleryImage? = null,
     val keywords: List<String>,
