@@ -85,9 +85,10 @@ class StorageService {
                 prepped.setString(11, img.exposureDetails?.iso)
                 prepped.setString(12, img.exposureDetails?.cameraMake)
                 prepped.setString(13, img.exposureDetails?.cameraModel)
-                prepped.setString(14, img.extra.let { prettyJson.encodeToString(it) })
-                prepped.setString(15, now)
-                prepped.setInt(16, id)
+                prepped.setString(14, img.stockImageSite.firstOrNull())
+                prepped.setString(15, img.extra.let { prettyJson.encodeToString(it) })
+                prepped.setString(16, now)
+                prepped.setInt(17, id)
                 prepped.executeUpdate()
             }
         } catch (e: SQLException) {
@@ -120,9 +121,10 @@ class StorageService {
                 prepped.setString(15, img.exposureDetails?.iso)
                 prepped.setString(16, img.exposureDetails?.cameraMake)
                 prepped.setString(17, img.exposureDetails?.cameraModel)
-                prepped.setString(18, img.extra.let { prettyJson.encodeToString(it) } )
-                prepped.setString(19, now)
+                prepped.setString(18, img.stockImageSite.firstOrNull() )
+                prepped.setString(19, img.extra.let { prettyJson.encodeToString(it) } )
                 prepped.setString(20, now)
+                prepped.setString(21, now)
                 prepped.executeUpdate()
                 return prepped.generatedKeys.getInt(1)
             }
@@ -169,6 +171,7 @@ class StorageService {
                 iso TEXT,
                 camera_make TEXT,
                 camera_model TEXT,
+                stock_image_site TEXT NULL,
                 extra_fields TEXT NOT NULL,
                 created TEXT NOT NULL, 
                 updated TEXT NOT NULL
@@ -189,6 +192,7 @@ class StorageService {
                 iso = ?, 
                 camera_make = ?, 
                 camera_model = ?,
+                stock_image_site = ?,
                 extra_fields = ?,
                 updated = ?
             WHERE id = ?
@@ -215,11 +219,12 @@ class StorageService {
                 iso, 
                 camera_make, 
                 camera_model, 
+                stock_image_site,
                 extra_fields,
                 created, 
                 updated
             ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
 
         fun createTable() {

@@ -41,6 +41,7 @@ data class ImageFrontMatter(
             captureTime = localDateTime?.let { DateTimeFormatter.ofPattern("HHmmss").format(it) },
             keywords = keywords,
             exposureDetails = exifDetails,
+            stockImageSite = stockImageSite,
             extra = extra,
         )
     }
@@ -67,6 +68,7 @@ data class ImageFrontMatter(
                 imagePaths = GalleryImage.from(imageMetadata.path, imageMetadata.getReference()),
                 keywords = imageMetadata.keywords,
                 exifDetails = imageMetadata.exposureDetails?.ifAnyData(),
+                stockImageSite = imageMetadata.stockImageSite,
                 extra = imageMetadata.extra,
             )
         }

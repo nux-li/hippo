@@ -23,6 +23,7 @@ data class ImageMetadata(
     val exposureDetails: ExposureDetails? = null,
     val created: LocalDateTime? = null,
     val updated: LocalDateTime? = null,
+    val stockImageSite: List<String> = emptyList(),
     val extra: Map<String, String> = emptyMap(),
 ) {
     fun getReference() = IMG_NAME_PREFIX + getDocumentId()
@@ -51,6 +52,7 @@ data class ImageMetadata(
             captureTime,
             keywords,
             exposureDetails,
+            stockImageSite,
             extra,
         )
     }
@@ -70,6 +72,7 @@ data class ImageMetadata(
             captureTime == other.captureTime &&
             keywords == other.keywords &&
             exposureDetails == other.exposureDetails &&
+            stockImageSite == other.stockImageSite &&
             extra == other.extra
     }
 
@@ -98,10 +101,16 @@ data class ImageMetadata(
                 cameraMake = resultSet.getString("camera_make"),
                 cameraModel = resultSet.getString("camera_model"),
             ),
+            stockImageSite = getStockImageSiteFrom(resultSet),
             extra = resultSet.getString("extra_fields").let { prettyJson.decodeFromString(it) },
             created = resultSet.getTimestamp("created").toLocalDateTime(),
             updated = resultSet.getTimestamp("updated").toLocalDateTime(),
         )
+
+        private fun getStockImageSiteFrom(resultSet: ResultSet): List<String> {
+            val sis = resultSet.getString("stock_image_site")
+            return if (resultSet.wasNull()) emptyList() else listOf(sis)
+        }
 
         private fun getYearFrom(capturedDate: String?): String? {
             return capturedDate?.let {

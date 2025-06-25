@@ -26,6 +26,7 @@ import li.nux.hippo.helpers.getSetOfPaths
 import li.nux.hippo.helpers.handleDelete
 import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
+import li.nux.hippo.helpers.refine
 import li.nux.hippo.helpers.sanitizeDirectoryNames
 import li.nux.hippo.helpers.updateAlbumMarkdownDocs
 import li.nux.hippo.model.ConvertedImage
@@ -81,6 +82,7 @@ fun execute(
     updateAlbumMarkdownDocs(allImages, params, hugoPaths)
     val newAndChangedImages = imageChanges.changedOnDisk.plus(imageChanges.inserted.values)
     createImageFiles(newAndChangedImages.groupBy { it.getAlbumId() }, params)
+//    refine(hugoPaths = hugoPaths, params = params)
     printResult(taskResults)
 }
 
