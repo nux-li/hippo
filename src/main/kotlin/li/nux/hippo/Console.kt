@@ -5,6 +5,7 @@ import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.Base64
 import java.util.Locale
+import li.nux.hippo.model.WatermarkConfig
 
 private const val LOGO = "IF8gICBfIF8gICAgICAgICAgICAgICAgICAgDQp8IHwgfCAoXykgICAgICAgICAgICAgICAgICANCnwgf" +
     "F98IHxfIF8gX18gIF8gX18gICBfX18gIA0KfCAgXyAgfCB8ICdfIFx8ICdfIFwgLyBfIFwgDQp8IHwgfCB8IHwgfF8pIHwgfF8pIHwg" +
@@ -85,7 +86,7 @@ data class HippoParams(
     val changeAcceptance: ChangeAcceptance,
     val precedence: Precedence,
     val frontMatterFormat: FrontMatterFormat,
-    val watermark: String?,
+    val watermark: WatermarkConfig?,
     val verbose: Boolean = false,
     val demo: Boolean = false,
     val contentDirectory: String,

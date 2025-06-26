@@ -18,7 +18,6 @@ import li.nux.hippo.TaskResult.NEW_IMAGES
 import li.nux.hippo.TaskResult.NEW_IMAGE_TOTAL
 import li.nux.hippo.helpers.DemoResponse
 import li.nux.hippo.helpers.createOrReplacePages
-import li.nux.hippo.helpers.deleteDemoFiles
 import li.nux.hippo.helpers.fetchImagesIfDemo
 import li.nux.hippo.helpers.getAllImagesFromDisk
 import li.nux.hippo.helpers.getImagesFromFrontMatters
@@ -26,23 +25,21 @@ import li.nux.hippo.helpers.getSetOfPaths
 import li.nux.hippo.helpers.handleDelete
 import li.nux.hippo.helpers.handleNewImage
 import li.nux.hippo.helpers.handleUpdate
-import li.nux.hippo.helpers.refine
 import li.nux.hippo.helpers.sanitizeDirectoryNames
 import li.nux.hippo.helpers.updateAlbumMarkdownDocs
 import li.nux.hippo.model.ConvertedImage
 import li.nux.hippo.model.ImageChanges
 import li.nux.hippo.model.ImageMetadata
 import li.nux.hippo.model.ResizableBy
+import li.nux.hippo.model.WatermarkConfig
+import li.nux.hippo.model.WatermarkConfig.Companion.WATERMARK_BLC_OPACITY
+import li.nux.hippo.model.WatermarkConfig.Companion.WATERMARK_CTR_OPACITY
 import net.coobird.thumbnailator.filters.Watermark
 import net.coobird.thumbnailator.geometry.Positions
 import org.apache.tika.Tika
 import org.imgscalr.Scalr
 
 const val MAX_DIRECTORY_DEPTH = 10
-const val WATERMARK_LOWER_THRESHOLD = 1000
-const val WATERMARK_MIN_WIDTH = 200
-const val FIFTH = 5
-const val WATERMARK_OPACITY = 0.6f
 
 fun init() {
     StorageService.createTable()
@@ -103,7 +100,7 @@ fun createImageFiles(
             Files.createDirectories(destination)
             print("AlbumId $albumId - Image sets created: $index / $totalFiles...")
             ConvertedImage.entries.forEach { convertedImageSize ->
-                when (val watermarkFilename = if (convertedImageSize.watermarkEnabled) params.watermark else null) {
+                when (val watermarkConfig = if (convertedImageSize.watermarkEnabled) params.watermark else null) {
                     null -> createResizedImageSetsWithoutWatermarks(
                         imageMetadata,
                         convertedImageSize,
@@ -113,7 +110,7 @@ fun createImageFiles(
                     else -> createResizedImageSetsWithWatermarks(
                         imageMetadata,
                         convertedImageSize,
-                        watermarkFilename,
+                        watermarkConfig,
                         destinationFolder
                     )
                 }
@@ -127,16 +124,31 @@ fun createImageFiles(
 private fun createResizedImageSetsWithWatermarks(
     imageMetadata: ImageMetadata,
     convertedImageSize: ConvertedImage,
-    watermarkFilename: String,
+    watermarkConfig: WatermarkConfig,
     destinationFolder: String
 ) {
     val albumPath = imageMetadata.path + File.separator
     val originalImage = getImageResizedIfNeeded(convertedImageSize, albumPath, imageMetadata)
-    val wmDim = originalImage.width.let { w -> if (w < WATERMARK_LOWER_THRESHOLD) WATERMARK_MIN_WIDTH else w / FIFTH }
-    val watermark = getAdjustedWatermark(watermarkFilename, wmDim)
+    val wmDim = originalImage.width.let { w -> watermarkConfig.getWatermarkSize(watermarkConfig.watermarkPath, w) }
+    val wmDimCenter = originalImage.width.let { w ->
+        watermarkConfig.getWatermarkSize(watermarkConfig.subtleWatermarkPath, w)
+    }
+    val watermark = getAdjustedWatermark(watermarkConfig.watermarkPath, wmDim)
+    val watermarkCenter = getAdjustedWatermark(watermarkConfig.subtleWatermarkPath, wmDimCenter)
 
-    val watermarkFilter = Watermark(Positions.BOTTOM_LEFT, watermark, WATERMARK_OPACITY)
-    val watermarked = watermarkFilter.apply(originalImage)
+    val watermarkBottomLeftCornerFilter = Watermark(
+        watermarkConfig.watermarkPlacement.positions,
+        watermark,
+        WATERMARK_BLC_OPACITY
+    )
+    val watermarked = when (watermarkConfig.watermarkPlacement.additionalCenterWatermark) {
+        false -> watermarkBottomLeftCornerFilter.apply(originalImage)
+        true -> {
+            val watermarkCenterFilter = Watermark(Positions.CENTER, watermarkCenter, WATERMARK_CTR_OPACITY)
+            watermarkCenterFilter.apply(watermarkBottomLeftCornerFilter.apply(originalImage))
+        }
+    }
+
     ImageIO.write(
         watermarked,
         "jpg",
