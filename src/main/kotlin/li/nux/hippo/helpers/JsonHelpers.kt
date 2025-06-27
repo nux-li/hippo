@@ -3,7 +3,6 @@ package li.nux.hippo.helpers
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
-import kotlin.math.roundToInt
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import li.nux.hippo.HugoPaths
@@ -45,12 +44,26 @@ fun createDatafileWithAllKeywords(
     val keywordItems = imfMap.values.map { it.keywords }
         .flatten()
         .groupBy { it }
-        .map { KeywordItem(it.key, it.value.size) }
-    val bucketSize = keywordItems.maxOfOrNull { item: KeywordItem -> item.count }
-        ?.let { ((it.toDouble() + 1.0) / NUMBER_OF_BUCKETS).roundToInt() } ?: 0
+        .map { KeywordItem(it.key.replace("\"", ""), it.value.size) }
 
-    val keywords = keywordItems.map { it.copy(weight = ((it.count + 1).toDouble() / bucketSize).roundToInt()) }
-        .groupBy { it.keyword }.mapKeys { it.key.lowercase() }.mapValues { it.value.first() }
+    val keywords = assignBuckets(keywordItems)
     val content = prettyJson.encodeToString(keywords)
     Files.write(datafile, content.toByteArray())
+}
+
+fun assignBuckets(keywords: List<KeywordItem>): List<KeywordItem> {
+    val min = keywords.minOfOrNull { it.count }
+    val max = keywords.maxOfOrNull { it.count }
+
+    return if (min == null || max == null) {
+        emptyList()
+    } else if (min == max) {
+        keywords.map { it.copy(weight = 1) }
+    } else {
+        keywords.map { keyword ->
+            val relativePos = (keyword.count - min).toDouble() / (max - min)
+            val bucket = (relativePos * (NUMBER_OF_BUCKETS - 1)).toInt() + 1
+            keyword.copy(weight = bucket)
+        }
+    }
 }

@@ -39,7 +39,7 @@ data class ImageFrontMatter(
             credit = credit,
             captureDate = localDateTime?.let { DateTimeFormatter.ofPattern("yyyyMMdd").format(it) },
             captureTime = localDateTime?.let { DateTimeFormatter.ofPattern("HHmmss").format(it) },
-            keywords = keywords,
+            keywords = keywords.map { it.replace("\"", "") },
             exposureDetails = exifDetails,
             stockImageSite = stockImageSite,
             extra = extra,
@@ -66,7 +66,9 @@ data class ImageFrontMatter(
                 captureDate = captured?.toLocalDate()?.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 captureDateTime = captured?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 imagePaths = GalleryImage.from(imageMetadata.path, imageMetadata.getReference()),
-                keywords = imageMetadata.keywords,
+                keywords = imageMetadata.keywords
+                    .map { it.replace("\"", "") }
+                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it }),
                 exifDetails = imageMetadata.exposureDetails?.ifAnyData(),
                 stockImageSite = imageMetadata.stockImageSite,
                 extra = imageMetadata.extra,

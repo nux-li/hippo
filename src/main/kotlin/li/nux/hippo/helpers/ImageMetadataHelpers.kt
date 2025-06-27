@@ -84,7 +84,10 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                     year = listOf(dateAsString),
                     captureDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED),
                     captureTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED),
-                    keywords = Optional.ofNullable(iptcDirectory.keywords).orElse(emptyList()),
+                    keywords = Optional.ofNullable(iptcDirectory.keywords)
+                        .orElse(emptyList())
+                        .map { it.replace("\"", "") }
+                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it }),
                     exposureDetails = ExposureDetails(
                         focalLength = focalLength,
                         aperture = fNumber,
