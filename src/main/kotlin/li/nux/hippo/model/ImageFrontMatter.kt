@@ -11,8 +11,8 @@ data class ImageFrontMatter(
     @kotlinx.serialization.Transient
     val imageId: String = "",
     val controlCode: String,
-    @SerialName("imageTitle")
     val title: String,
+    val imageTitle: String,
     val description: String,
     val credit: String? = null,
     val equipment: List<String>,
@@ -34,7 +34,7 @@ data class ImageFrontMatter(
             path = path,
             album = album,
             filename = filename,
-            title = title,
+            title = imageTitle,
             description = description,
             credit = credit,
             captureDate = localDateTime?.let { DateTimeFormatter.ofPattern("yyyyMMdd").format(it) },
@@ -58,6 +58,7 @@ data class ImageFrontMatter(
                     imageMetadata.filename,
                 ).joinToString(",").let { Base64.getEncoder().encodeToString(it.encodeToByteArray()) },
                 title = imageMetadata.title ?: "Insert title here",
+                imageTitle = imageMetadata.title ?: "Insert title here",
                 description = imageMetadata.description ?: "Insert description here",
                 credit = imageMetadata.credit,
                 equipment = imageMetadata.exposureDetails

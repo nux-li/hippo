@@ -15,8 +15,8 @@ data class Album(
     val pageType: String = "album",
     val albumId: String,
     val controlCode: String,
-    @SerialName("albumTitle")
     var title: String = "",
+    var albumTitle: String = "",
     var description: String = "",
     var coverImage: GalleryImage? = null,
     var subAlbums: List<SubAlbum> = emptyList(),
@@ -32,6 +32,7 @@ data class Album(
                     images.first().album,
                 ).joinToString(",").let { Base64.getEncoder().encodeToString(it.encodeToByteArray()) },
                 title = capitalize(images.first().album),
+                albumTitle = capitalize(images.first().album),
                 description = "Insert album description here",
                 coverImage = GalleryImage.from(path, images.first().getReference()),
                 subAlbums = emptyList(),
@@ -51,6 +52,7 @@ data class Album(
                     "/",
                 ).joinToString(",").let { Base64.getEncoder().encodeToString(it.encodeToByteArray()) },
                 title = "Albums",
+                albumTitle = "Albums",
                 description = "Insert description here",
                 coverImage = null,
                 subAlbums = emptyList(),
@@ -67,8 +69,8 @@ data class Album(
 @Serializable
 data class SubAlbum(
     val albumId: String,
-    @SerialName("albumTitle")
     val title: String,
+    val albumTitle: String,
     val coverImage: GalleryImage? = null,
     val imageCount: Int? = null,
     val path: String,
@@ -79,6 +81,7 @@ data class SubAlbum(
             return SubAlbum(
                 albumId = album.albumId,
                 title = album.title,
+                albumTitle = album.title,
                 coverImage = album.coverImage,
                 imageCount = album.images.size.plus (album.subAlbums.sumOf { it.imageCount ?: 0}),
                 path = (realPath.lowercase().split("/content").last() + File.separator + album.title.lowercase())
