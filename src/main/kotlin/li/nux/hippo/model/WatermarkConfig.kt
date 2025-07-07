@@ -66,7 +66,7 @@ enum class WatermarkPlacement(
 
     companion object {
         fun getDescriptions(): String {
-            return entries.joinToString("\n") { "${it.name} --> ${it.description}" }
+            return entries.joinToString("\n") { "${it.name} --> ${it.description}\n" }
         }
     }
 }

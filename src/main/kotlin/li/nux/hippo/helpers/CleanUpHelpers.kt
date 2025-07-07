@@ -18,7 +18,7 @@ fun regenerate(hugoPaths: HugoPaths) {
 }
 
 fun deleteMarkdownFiles(hugoPaths: HugoPaths) {
-    Files.walk(hugoPaths.content)
+    Files.walk(hugoPaths.albums)
         .filter { path ->
             path.isRegularFile() && path.toString().endsWith(MARK_DOWN_FILE_EXTENSION)
         }
