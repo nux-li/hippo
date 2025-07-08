@@ -1,5 +1,5 @@
 # hippo
-Hugo Image Preprocessor (Hippo) is developed to be used together with Hugo,  one of the most popular open-source static site generators.
+Hugo Image Preprocessor (Hippo) is a command line tool written in Kotlin, developed to be used together with Hugo,  one of the most popular open-source static site generators.
 
 Hippo extracts metadata from JPEGs, creates a set of resized images with or without watermarks. The metadata is placed in the front matter, one markdown file for each image. For every folder with images, an album markdown file is also created.
 
