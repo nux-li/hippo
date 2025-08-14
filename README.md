@@ -41,6 +41,20 @@ Options:
   -h, --help                Show this message and exit
 
 Arguments:
-  <directory>  Path to the content directory for your Hugo website project
+  <directory>  Path to the root directory for your Hugo website project
 
 ```
+
+Directory will be defaulted to `../..`
+
+Watermark PNG file(s) should be placed in assets/watermarks folder and the naming should be as this:
+
+watermark files should be placed
+under `assets/watermarks`:
+
+| Filename             | Description                                                       |
+|----------------------|-------------------------------------------------------------------|
+| watermark_main.png   | Visible watermark to be placed in one of the image's four corners |
+| watermark_subtle.png | Barely visible watermark placed in the middle of the image  |
+
+Then when running hippo with the --watermark option, a value according to the above usage description output,should be added. If the value contains a trailing `_C` the `watermark_subtle.png` is placed in the middle of your photos, but with a high degree of transparency.

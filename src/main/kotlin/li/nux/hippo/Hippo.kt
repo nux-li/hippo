@@ -60,7 +60,7 @@ class Hippo : CliktCommand() {
         .flag(default = false)
         .help("Refine front matter in existing markdown files.")
     private val directory: String by argument()
-        .help("Path to the content directory for your Hugo website project")
+        .help("Path to the root directory for your Hugo website project")
         .default("../..")
 
     override fun run() {
