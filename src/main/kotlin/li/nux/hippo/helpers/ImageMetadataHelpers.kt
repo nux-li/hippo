@@ -92,12 +92,14 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                 } else null
                 val captureDate = iptcDate.ifBlank { fallback?.first }
                 val captureTime = iptcTime.ifBlank { fallback?.second }
+                val iptcTitle = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME)
+                val iptcDescription = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION)
                 ImageMetadata(
                     path = path,
                     album = album,
                     filename = filename,
-                    title = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME),
-                    description = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION),
+                    title = iptcTitle.ifBlank { getXmpTextValue(metadata, "dc:title") },
+                    description = iptcDescription.ifBlank { getXmpTextValue(metadata, "dc:description") },
                     credit = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CREDIT),
                     year = listOfNotNull(captureDate),
                     captureDate = captureDate,
@@ -115,6 +117,8 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
                     path = path,
                     album = album,
                     filename = filename,
+                    title = getXmpTextValue(metadata, "dc:title"),
+                    description = getXmpTextValue(metadata, "dc:description"),
                     year = listOfNotNull(fallback?.first),
                     captureDate = fallback?.first,
                     captureTime = fallback?.second,
@@ -150,6 +154,22 @@ private fun getCaptureDateTimeFromExifOrXmp(metadata: Metadata, exifDirectory: E
                 }
         }
     return xmpValue.map { parseFlexibleDateTime(it) }.orElse(null)
+}
+
+/**
+ * Tools like darktable write title/caption into the XMP dc:title / dc:description packet (an
+ * RDF "Alt" bag of localized strings, flattened by metadata-extractor as e.g. "dc:title[1]")
+ * rather than into the legacy IPTC IIM ObjectName/Caption fields, so images edited by them would
+ * otherwise end up with an empty title and description.
+ */
+private fun getXmpTextValue(metadata: Metadata, propertyName: String): String {
+    return metadata.getDirectoriesOfType(XmpDirectory::class.java).stream().findFirst()
+        .flatMap { xmpDirectory ->
+            Optional.ofNullable(xmpDirectory.xmpProperties)
+                .flatMap { props ->
+                    Optional.ofNullable(props["$propertyName[1]"] ?: props[propertyName])
+                }
+        }.orElse("")
 }
 
 private fun formatCaptureDateTime(date: Date): Pair<String, String> {
