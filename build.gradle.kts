@@ -51,7 +51,7 @@ idea.module {
     generatedSourceDirs.add(file("build/generated/main/kotlin/"))
 }
 
-val fatJar = task("fatJar", Jar::class) {
+val fatJar = tasks.register<Jar>("fatJar") {
     archiveClassifier.set("all")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
