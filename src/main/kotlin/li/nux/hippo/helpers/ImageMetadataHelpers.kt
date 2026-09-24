@@ -7,6 +7,7 @@ import java.io.IOException
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.GregorianCalendar
 import java.util.Locale
 import java.util.Optional
@@ -21,6 +22,7 @@ import com.drew.metadata.exif.ExifDirectoryBase.TAG_MAKE
 import com.drew.metadata.exif.ExifDirectoryBase.TAG_MODEL
 import com.drew.metadata.exif.ExifSubIFDDirectory
 import com.drew.metadata.iptc.IptcDirectory
+import com.drew.metadata.xmp.XmpDirectory
 import com.thedeanda.lorem.LoremIpsum
 import li.nux.hippo.HippoParams
 import li.nux.hippo.model.ExposureDetails
@@ -70,40 +72,119 @@ fun getImageMetadata(file: Path, params: HippoParams): ImageMetadata {
         val model = maybeExif.map { exif -> exif.getString(TAG_MODEL) }.orElse("")
         printIf(params, "fStop: $fNumber,exposure: $exposureTime,iso: $iso,Make: $make,Model: $model")
 
+        val exifDirectory = maybeExif.orElse(null)
+        val exposureDetails = ExposureDetails(
+            focalLength = focalLength,
+            aperture = fNumber,
+            exposureTime = exposureTime,
+            iso = iso,
+            cameraMake = make,
+            cameraModel = model,
+        )
+
         imageMetadata = metadata.getDirectoriesOfType(IptcDirectory::class.java).stream()
             .findFirst()
             .map { iptcDirectory: IptcDirectory ->
-                val dateAsString = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED)
+                val iptcDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED)
+                val iptcTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED)
+                val fallback = if (iptcDate.isBlank() || iptcTime.isBlank()) {
+                    getCaptureDateTimeFromExifOrXmp(metadata, exifDirectory)
+                } else null
+                val captureDate = iptcDate.ifBlank { fallback?.first }
+                val captureTime = iptcTime.ifBlank { fallback?.second }
+                val iptcTitle = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME)
+                val iptcDescription = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION)
                 ImageMetadata(
                     path = path,
                     album = album,
                     filename = filename,
-                    title = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_OBJECT_NAME),
-                    description = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CAPTION),
+                    title = iptcTitle.ifBlank { getXmpTextValue(metadata, "dc:title") },
+                    description = iptcDescription.ifBlank { getXmpTextValue(metadata, "dc:description") },
                     credit = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_CREDIT),
-                    year = listOf(dateAsString),
-                    captureDate = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_DATE_CREATED),
-                    captureTime = getValueFromIptc(iptcDirectory, IptcDirectory.TAG_TIME_CREATED),
+                    year = listOfNotNull(captureDate),
+                    captureDate = captureDate,
+                    captureTime = captureTime,
                     keywords = Optional.ofNullable(iptcDirectory.keywords)
                         .orElse(emptyList())
                         .map { it.replace("\"", "") }
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it }),
-                    exposureDetails = ExposureDetails(
-                        focalLength = focalLength,
-                        aperture = fNumber,
-                        exposureTime = exposureTime,
-                        iso = iso,
-                        cameraMake = make,
-                        cameraModel = model,
-                    ),
+                    exposureDetails = exposureDetails,
                     extra = mapOf("parameter_name" to "parameter_value"),
                 )
-            }.orElse(ImageMetadata(path = path, album = album, filename = filename))
+            }.orElseGet {
+                val fallback = getCaptureDateTimeFromExifOrXmp(metadata, exifDirectory)
+                ImageMetadata(
+                    path = path,
+                    album = album,
+                    filename = filename,
+                    title = getXmpTextValue(metadata, "dc:title"),
+                    description = getXmpTextValue(metadata, "dc:description"),
+                    year = listOfNotNull(fallback?.first),
+                    captureDate = fallback?.first,
+                    captureTime = fallback?.second,
+                    exposureDetails = exposureDetails.ifAnyData(),
+                )
+            }
     } catch (e: ImageProcessingException) {
         printError("Could not get metadata for " + file.toAbsolutePath() + ": " + e.message)
         imageMetadata = ImageMetadata(path = path, album = album, filename = filename)
     }
     return imageMetadata
+}
+
+/**
+ * IPTC "Date/Time Created" is often left empty by modern editing tools (e.g. darktable), which instead
+ * write the capture date to EXIF DateTimeOriginal/Digitized or, failing that, to the XMP packet
+ * (what Finder/Photos label "Content Created"). Falls back to those sources so images that only carry
+ * XMP date metadata still get a capture date instead of an empty string that fails downstream parsing.
+ */
+private fun getCaptureDateTimeFromExifOrXmp(metadata: Metadata, exifDirectory: ExifSubIFDDirectory?): Pair<String, String>? {
+    val exifDate = exifDirectory?.dateOriginal ?: exifDirectory?.dateDigitized
+    if (exifDate != null) {
+        return formatCaptureDateTime(exifDate)
+    }
+
+    val xmpValue = metadata.getDirectoriesOfType(XmpDirectory::class.java).stream().findFirst()
+        .flatMap { xmpDirectory ->
+            Optional.ofNullable(xmpDirectory.xmpProperties)
+                .flatMap { props ->
+                    Optional.ofNullable(
+                        props["exif:DateTimeOriginal"] ?: props["photoshop:DateCreated"] ?: props["xmp:CreateDate"]
+                    )
+                }
+        }
+    return xmpValue.map { parseFlexibleDateTime(it) }.orElse(null)
+}
+
+/**
+ * Tools like darktable write title/caption into the XMP dc:title / dc:description packet (an
+ * RDF "Alt" bag of localized strings, flattened by metadata-extractor as e.g. "dc:title[1]")
+ * rather than into the legacy IPTC IIM ObjectName/Caption fields, so images edited by them would
+ * otherwise end up with an empty title and description.
+ */
+private fun getXmpTextValue(metadata: Metadata, propertyName: String): String {
+    return metadata.getDirectoriesOfType(XmpDirectory::class.java).stream().findFirst()
+        .flatMap { xmpDirectory ->
+            Optional.ofNullable(xmpDirectory.xmpProperties)
+                .flatMap { props ->
+                    Optional.ofNullable(props["$propertyName[1]"] ?: props[propertyName])
+                }
+        }.orElse("")
+}
+
+private fun formatCaptureDateTime(date: Date): Pair<String, String> {
+    val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+    val timeFormat = SimpleDateFormat("HHmmss", Locale.getDefault())
+    return dateFormat.format(date) to timeFormat.format(date)
+}
+
+private val xmpDateTimePattern = Regex("""(\d{4})[:-](\d{2})[:-](\d{2})[ T](\d{2}):(\d{2}):(\d{2})""")
+
+private fun parseFlexibleDateTime(value: String): Pair<String, String>? {
+    val groups = xmpDateTimePattern.find(value)?.groupValues ?: return null
+    val (year, month, day) = Triple(groups[1], groups[2], groups[3])
+    val (hour, minute, second) = Triple(groups[4], groups[5], groups[6])
+    return "$year$month$day" to "$hour$minute$second"
 }
 
 private fun getRandomDate(): String {

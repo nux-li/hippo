@@ -43,21 +43,17 @@ fun updateAlbumMarkdownDocs(
     val groupedByPath = albums
         .groupBy { String(Base64.getDecoder().decode(it.controlCode)).split(",").first() }
         .toMutableMap()
-    if (groupedByPath[params.contentDirectory] == null) {
-        printIf(params, "Creating root folder for ${params.getContentDirectoryFullPath()}")
-        groupedByPath[params.contentDirectory] = listOf(
+    if (groupedByPath[hugoPaths.albums.toString()] == null) {
+        printIf(params, "Creating root folder for ${hugoPaths.albums}")
+        groupedByPath[hugoPaths.albums.toString()] = listOf(
             Album.rootFolder(hugoPaths.albums.toString())
         )
     }
     groupedByPath.forEach { (albumPath, albums) ->
-        val realAlbumPath = when (albumPath) {
-            "../.." -> hugoPaths.albums.toString()
-            else -> albumPath
-        }
         val subAlbums = groupedByPath.keys
-            .filter { isDirectSubfolder(it, realAlbumPath) }
+            .filter { isDirectSubfolder(it, albumPath) }
             .flatMap { groupedByPath[it]!! }
-            .map { SubAlbum.from(it, realAlbumPath) }
+            .map { SubAlbum.from(it, albumPath) }
             .sortedBy { it.title }
         val path = Path.of(albumPath + File.separator + "_index.md")
         printIf(params, "Front matter index path $path")
@@ -82,11 +78,7 @@ private fun writeAlbumFrontMatterFilesToDisk(
     params: HippoParams
 ) {
     groupedByPath.forEach { (albumPath, albums) ->
-        val realAlbumPath = when (albumPath) {
-            "../.." -> params.getContentDirectoryFullPath() + "/content/albums"
-            else -> albumPath
-        }
-        val albumFile = Paths.get(realAlbumPath + File.separator + "_index.md")
+        val albumFile = Paths.get(albumPath + File.separator + "_index.md")
         val frontMatter = when (params.frontMatterFormat) {
             JSON -> prettyJson.encodeToString(albums.first())
             TOML -> tomlWrap(Toml.encodeToString(Album.serializer(), albums.first()))
